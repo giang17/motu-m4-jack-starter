@@ -62,6 +62,9 @@ class MotuM4JackGUI(Gtk.Window):
         self.set_default_size(400, 450)
         self.set_resizable(False)
 
+        # Timer ID for automatic status refresh
+        self.status_timer_id = None
+
         # Set icon
         if os.path.exists(self.ICON_PATH):
             self.set_icon_from_file(self.ICON_PATH)
@@ -181,10 +184,68 @@ class MotuM4JackGUI(Gtk.Window):
         # Load initial status
         self.refresh_status()
 
+        # Start automatic status refresh (every 5 seconds)
+        self.start_status_timer()
+
         # Show window
-        self.connect("destroy", Gtk.main_quit)
+        self.connect("destroy", self.on_destroy)
         self.show_all()
         self.spinner.hide()
+
+    def on_destroy(self, widget):
+        """Handler for window close - stop timer and quit"""
+        self.stop_status_timer()
+        Gtk.main_quit()
+
+    def start_status_timer(self):
+        """Starts the automatic status refresh timer"""
+        if self.status_timer_id is None:
+            # Refresh status every 5 seconds (5000 ms)
+            self.status_timer_id = GLib.timeout_add(5000, self.on_status_timer)
+
+    def stop_status_timer(self):
+        """Stops the automatic status refresh timer"""
+        if self.status_timer_id is not None:
+            GLib.source_remove(self.status_timer_id)
+            self.status_timer_id = None
+
+    def on_status_timer(self):
+        """Timer callback for automatic status refresh"""
+        # Only update status display, don't change radio button selection
+        self.update_status_display()
+        # Return True to keep the timer running
+        return True
+
+    def update_status_display(self):
+        """Updates only the status labels without changing radio button selection"""
+        # JACK Status
+        jack_running = self.check_jack_status()
+        if jack_running:
+            self.jack_status_label.set_markup(
+                "JACK Server: <span foreground='green'><b>● Running</b></span>"
+            )
+        else:
+            self.jack_status_label.set_markup(
+                "JACK Server: <span foreground='red'><b>○ Stopped</b></span>"
+            )
+
+        # Hardware Status
+        hardware_found = self.check_hardware()
+        if hardware_found:
+            self.hardware_status_label.set_markup(
+                "MOTU M4: <span foreground='green'><b>● Connected</b></span>"
+            )
+        else:
+            self.hardware_status_label.set_markup(
+                "MOTU M4: <span foreground='red'><b>○ Not found</b></span>"
+            )
+
+        # Current Setting (from config file)
+        current = self.get_current_setting()
+        setting_info = self.SETTINGS.get(current, self.SETTINGS[1])
+        self.current_setting_label.set_markup(
+            f"Active Setting: <b>{current} - {setting_info['name']}</b>"
+        )
 
     def get_current_setting(self):
         """Reads the current setting from the configuration file"""
@@ -219,37 +280,12 @@ class MotuM4JackGUI(Gtk.Window):
             return False
 
     def refresh_status(self):
-        """Updates all status displays"""
-        # JACK Status
-        jack_running = self.check_jack_status()
-        if jack_running:
-            self.jack_status_label.set_markup(
-                "JACK Server: <span foreground='green'><b>● Running</b></span>"
-            )
-        else:
-            self.jack_status_label.set_markup(
-                "JACK Server: <span foreground='red'><b>○ Stopped</b></span>"
-            )
+        """Updates all status displays and syncs radio button to current setting"""
+        # Update status labels
+        self.update_status_display()
 
-        # Hardware Status
-        hardware_found = self.check_hardware()
-        if hardware_found:
-            self.hardware_status_label.set_markup(
-                "MOTU M4: <span foreground='green'><b>● Connected</b></span>"
-            )
-        else:
-            self.hardware_status_label.set_markup(
-                "MOTU M4: <span foreground='red'><b>○ Not found</b></span>"
-            )
-
-        # Current Setting
+        # Set radio button accordingly (only on manual refresh)
         current = self.get_current_setting()
-        setting_info = self.SETTINGS.get(current, self.SETTINGS[1])
-        self.current_setting_label.set_markup(
-            f"Active Setting: <b>{current} - {setting_info['name']}</b>"
-        )
-
-        # Set radio button accordingly
         if current in self.setting_buttons:
             self.setting_buttons[current].set_active(True)
 
