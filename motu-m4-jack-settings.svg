@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="#2d2d2d"/>
+
+  <!-- Inner ring (audio interface style) -->
+  <circle cx="64" cy="64" r="52" fill="none" stroke="#444" stroke-width="2"/>
+
+  <!-- M4 Text -->
+  <text x="64" y="58" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="bold" fill="#ffffff" text-anchor="middle">M4</text>
+
+  <!-- JACK text below -->
+  <text x="64" y="82" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="bold" fill="#3584e4" text-anchor="middle">JACK</text>
+
+  <!-- Audio wave indicators (left) -->
+  <path d="M 20 54 Q 25 50, 30 54 Q 35 58, 40 54" fill="none" stroke="#3584e4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 22 64 Q 27 58, 32 64 Q 37 70, 42 64" fill="none" stroke="#3584e4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 20 74 Q 25 70, 30 74 Q 35 78, 40 74" fill="none" stroke="#3584e4" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Audio wave indicators (right) -->
+  <path d="M 88 54 Q 93 50, 98 54 Q 103 58, 108 54" fill="none" stroke="#3584e4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 86 64 Q 91 58, 96 64 Q 101 70, 106 64" fill="none" stroke="#3584e4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 88 74 Q 93 70, 98 74 Q 103 78, 108 74" fill="none" stroke="#3584e4" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Settings gear indicator (small) -->
+  <g transform="translate(64, 105)">
+    <circle cx="0" cy="0" r="8" fill="#3584e4"/>
+    <circle cx="0" cy="0" r="4" fill="#2d2d2d"/>
+    <!-- Gear teeth -->
+    <rect x="-1.5" y="-10" width="3" height="4" fill="#3584e4"/>
+    <rect x="-1.5" y="6" width="3" height="4" fill="#3584e4"/>
+    <rect x="-10" y="-1.5" width="4" height="3" fill="#3584e4"/>
+    <rect x="6" y="-1.5" width="4" height="3" fill="#3584e4"/>
+  </g>
+</svg>

@@ -1,0 +1,15 @@
+[Unit]
+Description=MOTU M4 Login Check for already connected devices
+After=graphical-session.target
+# Zusätzliche Verzögerung nach dem grafischen Login
+Wants=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 10
+ExecStart=/usr/local/bin/motu-m4-login-check.sh
+RemainAfterExit=no
+Environment=DISPLAY=:1
+
+[Install]
+WantedBy=default.target
