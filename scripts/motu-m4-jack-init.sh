@@ -1,42 +1,67 @@
 #!/bin/bash
 
-# Pfad zum Log-File (konsistent mit anderen Skripten)
+# =============================================================================
+# MOTU M4 JACK Initialization Script - v2.0
+# =============================================================================
+# Flexible JACK configuration with customizable sample rate, buffer size,
+# and periods. Reads configuration from config file or uses defaults.
+#
+# Configuration file format (v2.0):
+#   JACK_RATE=48000
+#   JACK_PERIOD=256
+#   JACK_NPERIODS=3
+#
+# Legacy format (v1.x) is still supported:
+#   JACK_SETTING=1|2|3
+#
+# Copyright (C) 2025
+# License: GPL-3.0-or-later
+# =============================================================================
+
+# Log file path (consistent with other scripts)
 LOG="/run/motu-m4/jack-init.log"
 
+# Ensure log directory exists
+mkdir -p /run/motu-m4 2>/dev/null || true
+
 # =============================================================================
-# JACK-Konfigurationsprofile
+# Default Configuration
 # =============================================================================
+DEFAULT_RATE=48000
+DEFAULT_PERIOD=256
+DEFAULT_NPERIODS=3
 
-# Setting 1: Niedrige Latenz (Standard)
-SETTING1_RATE=48000
-SETTING1_NPERIODS=3
-SETTING1_PERIOD=256
-SETTING1_DESC="Niedrige Latenz (48kHz, 3x256, ~5.3ms)"
+# =============================================================================
+# Legacy Presets (for backward compatibility with v1.x)
+# =============================================================================
+# Setting 1: Low Latency (Default)
+PRESET1_RATE=48000
+PRESET1_NPERIODS=3
+PRESET1_PERIOD=256
 
-# Setting 2: Mittlere Latenz
-SETTING2_RATE=48000
-SETTING2_NPERIODS=2
-SETTING2_PERIOD=512
-SETTING2_DESC="Mittlere Latenz (48kHz, 2x512, ~10.7ms)"
+# Setting 2: Medium Latency
+PRESET2_RATE=48000
+PRESET2_NPERIODS=2
+PRESET2_PERIOD=512
 
-# Setting 3: Ultra-niedrige Latenz
-SETTING3_RATE=48000
-SETTING3_NPERIODS=3
-SETTING3_PERIOD=128
-SETTING3_DESC="Ultra-niedrige Latenz (48kHz, 3x128, ~2.7ms)"
+# Setting 3: Ultra-Low Latency
+PRESET3_RATE=48000
+PRESET3_NPERIODS=3
+PRESET3_PERIOD=128
 
-# Auswahl des aktiven Settings
-# Priorität: 1. Umgebungsvariable JACK_SETTING, 2. Config-Datei, 3. Standard (1)
-CONFIG_FILE="/etc/motu-m4/jack-setting.conf"
+# =============================================================================
+# Configuration Files
+# =============================================================================
+SYSTEM_CONFIG_FILE="/etc/motu-m4/jack-setting.conf"
 
-# Bestimme den tatsächlichen Benutzer und User-Config-Pfad
+# Determine actual user and user config path
 ACTUAL_USER=""
 if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
     ACTUAL_USER="$SUDO_USER"
 elif [ "$(whoami)" != "root" ]; then
     ACTUAL_USER="$(whoami)"
 else
-    # Fallback: Erkenne aktiven Desktop-User
+    # Fallback: Detect active desktop user
     ACTUAL_USER=$(who | grep "(:" | head -n1 | awk '{print $1}')
 fi
 
@@ -46,107 +71,240 @@ else
     USER_CONFIG_FILE="$HOME/.config/motu-m4/jack-setting.conf"
 fi
 
-# Funktion zum Lesen der Konfigurationsdatei
-read_config_file() {
-    local config_file="$1"
-    if [ -f "$config_file" ]; then
-        local setting=$(grep "^JACK_SETTING=" "$config_file" | cut -d'=' -f2 | tr -d ' ')
-        if [ -n "$setting" ]; then
-            echo "$setting"
-            return 0
-        fi
-    fi
-    return 1
-}
-
-# Setting-Auswahl mit Fallback-Mechanismus
-JACK_SETTING=${JACK_SETTING:-}
-if [ -z "$JACK_SETTING" ]; then
-    # Versuche User-Config-Datei zu lesen
-    JACK_SETTING=$(read_config_file "$USER_CONFIG_FILE")
-fi
-if [ -z "$JACK_SETTING" ]; then
-    # Versuche System-Config-Datei zu lesen
-    JACK_SETTING=$(read_config_file "$CONFIG_FILE")
-fi
-# Fallback auf Standard-Setting
-JACK_SETTING=${JACK_SETTING:-1}
-
-# Aktive Parameter basierend auf Setting setzen
-if [ "$JACK_SETTING" = "2" ]; then
-    ACTIVE_RATE=$SETTING2_RATE
-    ACTIVE_NPERIODS=$SETTING2_NPERIODS
-    ACTIVE_PERIOD=$SETTING2_PERIOD
-    ACTIVE_DESC=$SETTING2_DESC
-elif [ "$JACK_SETTING" = "3" ]; then
-    ACTIVE_RATE=$SETTING3_RATE
-    ACTIVE_NPERIODS=$SETTING3_NPERIODS
-    ACTIVE_PERIOD=$SETTING3_PERIOD
-    ACTIVE_DESC=$SETTING3_DESC
-else
-    ACTIVE_RATE=$SETTING1_RATE
-    ACTIVE_NPERIODS=$SETTING1_NPERIODS
-    ACTIVE_PERIOD=$SETTING1_PERIOD
-    ACTIVE_DESC=$SETTING1_DESC
-fi
-
-# Debug-Logging für Konfiguration
-log_config_debug() {
-    echo "$(date): CONFIG DEBUG - ACTUAL_USER: ${ACTUAL_USER:-unset}" >> $LOG
-    echo "$(date): CONFIG DEBUG - USER_CONFIG_FILE: $USER_CONFIG_FILE" >> $LOG
-    echo "$(date): CONFIG DEBUG - CONFIG_FILE: $CONFIG_FILE" >> $LOG
-    echo "$(date): CONFIG DEBUG - JACK_SETTING env: ${JACK_SETTING:-unset}" >> $LOG
-    echo "$(date): CONFIG DEBUG - HOME: $HOME" >> $LOG
-    echo "$(date): CONFIG DEBUG - SUDO_USER: ${SUDO_USER:-unset}" >> $LOG
-    echo "$(date): CONFIG DEBUG - Current user: $(whoami)" >> $LOG
-    if [ -f "$USER_CONFIG_FILE" ]; then
-        echo "$(date): CONFIG DEBUG - User config exists: $(cat "$USER_CONFIG_FILE")" >> $LOG
-    else
-        echo "$(date): CONFIG DEBUG - User config does not exist: $USER_CONFIG_FILE" >> $LOG
-    fi
-    if [ -f "$CONFIG_FILE" ]; then
-        echo "$(date): CONFIG DEBUG - System config exists: $(cat "$CONFIG_FILE")" >> $LOG
-    else
-        echo "$(date): CONFIG DEBUG - System config does not exist: $CONFIG_FILE" >> $LOG
-    fi
-    echo "$(date): CONFIG DEBUG - Final JACK_SETTING: $JACK_SETTING" >> $LOG
-    echo "$(date): CONFIG DEBUG - Active config: Rate=$ACTIVE_RATE, Periods=$ACTIVE_NPERIODS, Period=$ACTIVE_PERIOD" >> $LOG
-}
-
-# Logging-Funktion
+# =============================================================================
+# Logging Functions
+# =============================================================================
 log() {
     echo "$(date): $1" >> $LOG
 }
 
-# Funktion zum Beenden mit Fehlermeldung
 fail() {
     echo "ERROR: $1"
     log "ERROR: $1"
     exit 1
 }
 
-# Debug-Informationen loggen
-log_config_debug
+# =============================================================================
+# Configuration Reading Functions
+# =============================================================================
 
-# Prüfen, ob das M4-Interface verfügbar ist
-if ! aplay -l | grep -q "M4"; then
-    fail "MOTU M4 Audio-Interface nicht gefunden. Bitte einschalten oder anschließen."
+# Read a value from a config file
+read_config_value() {
+    local config_file="$1"
+    local key="$2"
+    if [ -f "$config_file" ]; then
+        local value=$(grep "^${key}=" "$config_file" | cut -d'=' -f2 | tr -d ' ')
+        if [ -n "$value" ]; then
+            echo "$value"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Check if config file uses new v2.0 format
+is_v2_config() {
+    local config_file="$1"
+    if [ -f "$config_file" ]; then
+        if grep -q "^JACK_RATE=" "$config_file" || \
+           grep -q "^JACK_PERIOD=" "$config_file" || \
+           grep -q "^JACK_NPERIODS=" "$config_file"; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Check if config file uses legacy v1.x format
+is_legacy_config() {
+    local config_file="$1"
+    if [ -f "$config_file" ]; then
+        if grep -q "^JACK_SETTING=" "$config_file"; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Convert legacy setting number to parameters
+apply_legacy_preset() {
+    local setting="$1"
+    case "$setting" in
+        2)
+            ACTIVE_RATE=$PRESET2_RATE
+            ACTIVE_NPERIODS=$PRESET2_NPERIODS
+            ACTIVE_PERIOD=$PRESET2_PERIOD
+            ;;
+        3)
+            ACTIVE_RATE=$PRESET3_RATE
+            ACTIVE_NPERIODS=$PRESET3_NPERIODS
+            ACTIVE_PERIOD=$PRESET3_PERIOD
+            ;;
+        *)
+            # Default to preset 1
+            ACTIVE_RATE=$PRESET1_RATE
+            ACTIVE_NPERIODS=$PRESET1_NPERIODS
+            ACTIVE_PERIOD=$PRESET1_PERIOD
+            ;;
+    esac
+}
+
+# Load configuration from file (supports both v1.x and v2.0 formats)
+load_config_from_file() {
+    local config_file="$1"
+
+    if [ ! -f "$config_file" ]; then
+        return 1
+    fi
+
+    # Check for v2.0 format first
+    if is_v2_config "$config_file"; then
+        local rate=$(read_config_value "$config_file" "JACK_RATE")
+        local period=$(read_config_value "$config_file" "JACK_PERIOD")
+        local nperiods=$(read_config_value "$config_file" "JACK_NPERIODS")
+
+        if [ -n "$rate" ]; then
+            ACTIVE_RATE="$rate"
+        fi
+        if [ -n "$period" ]; then
+            ACTIVE_PERIOD="$period"
+        fi
+        if [ -n "$nperiods" ]; then
+            ACTIVE_NPERIODS="$nperiods"
+        fi
+
+        log "Loaded v2.0 config from $config_file: Rate=$ACTIVE_RATE, Period=$ACTIVE_PERIOD, Nperiods=$ACTIVE_NPERIODS"
+        return 0
+    fi
+
+    # Fallback to legacy v1.x format
+    if is_legacy_config "$config_file"; then
+        local setting=$(read_config_value "$config_file" "JACK_SETTING")
+        if [ -n "$setting" ]; then
+            apply_legacy_preset "$setting"
+            log "Loaded legacy v1.x config from $config_file: Setting=$setting (Rate=$ACTIVE_RATE, Period=$ACTIVE_PERIOD, Nperiods=$ACTIVE_NPERIODS)"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+# =============================================================================
+# Main Configuration Loading
+# =============================================================================
+
+# Initialize with defaults
+ACTIVE_RATE=$DEFAULT_RATE
+ACTIVE_PERIOD=$DEFAULT_PERIOD
+ACTIVE_NPERIODS=$DEFAULT_NPERIODS
+
+# Configuration priority:
+# 1. Environment variables (JACK_RATE, JACK_PERIOD, JACK_NPERIODS)
+# 2. User config file (~/.config/motu-m4/jack-setting.conf)
+# 3. System config file (/etc/motu-m4/jack-setting.conf)
+# 4. Defaults
+
+config_source="defaults"
+
+# Try system config first (lowest priority of files)
+if load_config_from_file "$SYSTEM_CONFIG_FILE"; then
+    config_source="system config ($SYSTEM_CONFIG_FILE)"
 fi
 
-# JACK-Status prüfen und stoppen falls läuft
-echo "Prüfe JACK-Status..."
-log "Prüfe JACK-Status..."
-jack_control status | grep -q "started"
-if [ $? -eq 0 ]; then
-    echo "JACK läuft - stoppe für Parameterkonfiguration..."
-    log "JACK läuft - stoppe für Parameterkonfiguration..."
+# Try user config (higher priority)
+if load_config_from_file "$USER_CONFIG_FILE"; then
+    config_source="user config ($USER_CONFIG_FILE)"
+fi
+
+# Environment variables have highest priority
+if [ -n "${JACK_RATE:-}" ]; then
+    ACTIVE_RATE="$JACK_RATE"
+    config_source="environment variables"
+fi
+if [ -n "${JACK_PERIOD:-}" ]; then
+    ACTIVE_PERIOD="$JACK_PERIOD"
+    config_source="environment variables"
+fi
+if [ -n "${JACK_NPERIODS:-}" ]; then
+    ACTIVE_NPERIODS="$JACK_NPERIODS"
+    config_source="environment variables"
+fi
+
+# Legacy environment variable support
+if [ -n "${JACK_SETTING:-}" ] && [ -z "${JACK_RATE:-}" ]; then
+    apply_legacy_preset "$JACK_SETTING"
+    config_source="environment variable (legacy JACK_SETTING=$JACK_SETTING)"
+fi
+
+# =============================================================================
+# Validation
+# =============================================================================
+
+# Validate sample rate
+case "$ACTIVE_RATE" in
+    22050|44100|48000|88200|96000|176400|192000)
+        ;;
+    *)
+        log "WARNING: Unusual sample rate $ACTIVE_RATE - using anyway"
+        ;;
+esac
+
+# Validate period (buffer size)
+if [ "$ACTIVE_PERIOD" -lt 16 ] || [ "$ACTIVE_PERIOD" -gt 8192 ]; then
+    log "WARNING: Period $ACTIVE_PERIOD outside typical range (16-8192)"
+fi
+
+# Validate nperiods
+if [ "$ACTIVE_NPERIODS" -lt 2 ] || [ "$ACTIVE_NPERIODS" -gt 8 ]; then
+    log "WARNING: Nperiods $ACTIVE_NPERIODS outside typical range (2-8)"
+fi
+
+# Calculate latency for logging
+LATENCY_MS=$(echo "scale=2; ($ACTIVE_PERIOD * $ACTIVE_NPERIODS) / $ACTIVE_RATE * 1000" | bc)
+ACTIVE_DESC="Custom (${ACTIVE_RATE}Hz, ${ACTIVE_NPERIODS}x${ACTIVE_PERIOD}, ~${LATENCY_MS}ms)"
+
+# =============================================================================
+# Debug Logging
+# =============================================================================
+log_config_debug() {
+    echo "$(date): CONFIG DEBUG - ACTUAL_USER: ${ACTUAL_USER:-unset}" >> $LOG
+    echo "$(date): CONFIG DEBUG - USER_CONFIG_FILE: $USER_CONFIG_FILE" >> $LOG
+    echo "$(date): CONFIG DEBUG - SYSTEM_CONFIG_FILE: $SYSTEM_CONFIG_FILE" >> $LOG
+    echo "$(date): CONFIG DEBUG - Config source: $config_source" >> $LOG
+    echo "$(date): CONFIG DEBUG - Final config: Rate=$ACTIVE_RATE, Period=$ACTIVE_PERIOD, Nperiods=$ACTIVE_NPERIODS" >> $LOG
+    echo "$(date): CONFIG DEBUG - Calculated latency: ${LATENCY_MS}ms" >> $LOG
+}
+
+# Log debug information
+log_config_debug
+
+# =============================================================================
+# Hardware Check
+# =============================================================================
+
+# Check if M4 interface is available
+if ! aplay -l | grep -q "M4"; then
+    fail "MOTU M4 Audio Interface not found. Please connect or power on the device."
+fi
+
+# =============================================================================
+# JACK Configuration and Start
+# =============================================================================
+
+# Check JACK status and stop if running
+echo "Checking JACK status..."
+log "Checking JACK status..."
+if jack_control status 2>/dev/null | grep -q "started"; then
+    echo "JACK is running - stopping for parameter configuration..."
+    log "JACK is running - stopping for parameter configuration..."
     jack_control stop
     sleep 1
 fi
 
-# JACK-Parameter konfigurieren
-echo "Konfiguriere JACK mit $ACTIVE_DESC..."
-log "Konfiguriere JACK mit $ACTIVE_DESC (Rate: $ACTIVE_RATE, Perioden: $ACTIVE_NPERIODS, Puffergröße: $ACTIVE_PERIOD)..."
+# Configure JACK parameters
+echo "Configuring JACK with $ACTIVE_DESC..."
+log "Configuring JACK: Rate=$ACTIVE_RATE, Periods=$ACTIVE_NPERIODS, Period=$ACTIVE_PERIOD"
 
 jack_control ds alsa
 jack_control dps device hw:M4,0
@@ -154,44 +312,57 @@ jack_control dps rate $ACTIVE_RATE
 jack_control dps nperiods $ACTIVE_NPERIODS
 jack_control dps period $ACTIVE_PERIOD
 
-# JACK starten
-echo "Starte JACK-Server mit neuen Parametern..."
-log "Starte JACK-Server mit neuen Parametern..."
-jack_control start || fail "JACK-Server konnte nicht gestartet werden"
+# Start JACK
+echo "Starting JACK server with new parameters..."
+log "Starting JACK server..."
+jack_control start || fail "JACK server could not be started"
 
-# Status prüfen
-jack_control status || fail "JACK-Server läuft nicht korrekt"
+# Verify status
+jack_control status || fail "JACK server is not running correctly"
 
-# A2J MIDI-Bridge starten (mit RT-Optimierung)
-echo "Starte ALSA-MIDI Bridge..."
-log "Starte ALSA-MIDI Bridge..."
+# =============================================================================
+# A2J MIDI Bridge
+# =============================================================================
+echo "Starting ALSA-MIDI Bridge..."
+log "Starting ALSA-MIDI Bridge..."
 
-# Prüfen, ob a2j bereits läuft
+# Check if a2j is already running
 a2j_status=$(a2j_control --status 2>&1)
 if echo "$a2j_status" | grep -q "bridge is running"; then
-    echo "A2J MIDI-Bridge läuft bereits."
-    log "A2J MIDI-Bridge läuft bereits."
+    echo "A2J MIDI Bridge is already running."
+    log "A2J MIDI Bridge is already running."
 else
-    # Hardware-Export aktivieren
-    a2j_control --ehw || echo "Hardware-Export möglicherweise bereits aktiviert"
+    # Enable hardware export
+    a2j_control --ehw || echo "Hardware export possibly already enabled"
 
-    # A2J-Bridge starten
-    a2j_control --start || echo "A2J MIDI-Bridge konnte nicht gestartet werden, möglicherweise bereits aktiv"
+    # Start A2J bridge
+    a2j_control --start || echo "A2J MIDI Bridge could not be started, possibly already active"
 
-    # Real-Time-Priorität für a2j prüfen und optimieren
-    sleep 1  # Kurz warten bis a2j-Prozess läuft
+    # Check and log Real-Time priority for a2j
+    sleep 1  # Brief wait for a2j process to start
     a2j_pid=$(pgrep a2j)
     if [ -n "$a2j_pid" ]; then
         rt_class=$(ps -o cls= -p $a2j_pid 2>/dev/null | tr -d ' ')
         if [ "$rt_class" = "FF" ]; then
-            echo "A2J läuft bereits mit Real-Time-Priorität"
-            log "A2J läuft mit Real-Time-Priorität (PID: $a2j_pid)"
+            echo "A2J is running with Real-Time priority"
+            log "A2J running with Real-Time priority (PID: $a2j_pid)"
         else
-            echo "A2J läuft ohne Real-Time-Priorität - das ist normal"
-            log "A2J läuft ohne RT-Priorität (PID: $a2j_pid, Klasse: $rt_class)"
+            echo "A2J is running without Real-Time priority - this is normal"
+            log "A2J running without RT priority (PID: $a2j_pid, Class: $rt_class)"
         fi
     fi
 fi
 
-echo "JACK-Audio-System erfolgreich gestartet mit $ACTIVE_DESC"
-log "JACK-Audio-System erfolgreich gestartet mit $ACTIVE_DESC (Rate: $ACTIVE_RATE, Perioden: $ACTIVE_NPERIODS, Puffergröße: $ACTIVE_PERIOD)"
+# =============================================================================
+# Success Message
+# =============================================================================
+echo ""
+echo "=== JACK Audio System Started Successfully ==="
+echo "Configuration: $ACTIVE_DESC"
+echo "  Sample Rate: $ACTIVE_RATE Hz"
+echo "  Buffer Size: $ACTIVE_PERIOD frames"
+echo "  Periods: $ACTIVE_NPERIODS"
+echo "  Latency: ~${LATENCY_MS} ms"
+echo "=============================================="
+
+log "JACK Audio System started successfully: $ACTIVE_DESC"

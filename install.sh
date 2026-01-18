@@ -1,11 +1,11 @@
 #!/bin/bash
 # =============================================================================
-# MOTU M4 JACK Starter - Installation Script
+# MOTU M4 JACK Starter - Installation Script v2.0
 # =============================================================================
 # Installs all components of the MOTU M4 JACK automation system
 # Usage: sudo ./install.sh
 #
-# Copyright (C) 2026
+# Copyright (C) 2025
 # License: GPL-3.0-or-later
 
 # Colors for output
@@ -58,6 +58,10 @@ check_dependencies() {
 
     if ! command -v aplay &> /dev/null; then
         missing+=("alsa-utils")
+    fi
+
+    if ! command -v bc &> /dev/null; then
+        missing+=("bc")
     fi
 
     if [ ${#missing[@]} -gt 0 ]; then
@@ -247,7 +251,10 @@ print_summary() {
     echo ""
     echo "Next steps:"
     echo ""
-    echo "  1. Configure JACK setting:"
+    echo "  1. Configure JACK (flexible v2.0 syntax):"
+    echo -e "     ${BLUE}sudo motu-m4-jack-setting-system.sh --rate=48000 --period=256 --nperiods=3 --restart${NC}"
+    echo ""
+    echo "     Or use a preset:"
     echo -e "     ${BLUE}sudo motu-m4-jack-setting-system.sh 2 --restart${NC}"
     echo ""
     echo "  2. Start the GUI:"
