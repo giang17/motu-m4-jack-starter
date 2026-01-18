@@ -180,10 +180,10 @@ Most stable option. Recommended for standard systems.
 ### Setting 3: Ultra-Low Latency
 
 ```
-Sample Rate: 96,000 Hz
+Sample Rate: 48,000 Hz
 Periods: 3
 Period Size: 128 frames
-Latency: ~1.3 ms
+Latency: ~2.7 ms
 ```
 
 **Warning**: Requires an optimized system with:

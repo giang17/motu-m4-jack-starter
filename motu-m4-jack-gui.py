@@ -46,10 +46,10 @@ class MotuM4JackGUI(Gtk.Window):
         },
         3: {
             "name": "Ultra-Low Latency",
-            "rate": "96,000 Hz",
+            "rate": "48,000 Hz",
             "periods": "3",
             "period": "128 frames",
-            "latency": "~1.3 ms",  # 128/96000*1000 = 1.33ms
+            "latency": "~2.7 ms",  # 128/48000*1000 = 2.67ms
         },
     }
 

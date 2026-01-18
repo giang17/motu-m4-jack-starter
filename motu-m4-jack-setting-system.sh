@@ -42,10 +42,10 @@ show_settings() {
     echo "  - Latenz: ~10.7 ms"
     echo ""
     echo -e "${GREEN}Setting 3:${NC} Ultra-niedrige Latenz"
-    echo "  - Sample Rate: 96.000 Hz"
+    echo "  - Sample Rate: 48.000 Hz"
     echo "  - Perioden: 3"
     echo "  - Puffergröße: 128 frames"
-    echo "  - Latenz: ~1.3 ms"
+    echo "  - Latenz: ~2.7 ms"
     echo ""
     echo -e "${YELLOW}Hinweis:${NC} Systemweite Einstellungen werden von allen Benutzern verwendet,"
     echo "außer wenn sie eigene User-Konfigurationen haben."
@@ -64,7 +64,7 @@ show_current() {
             if [ "$current_setting" = "2" ]; then
                 echo -e "${GREEN}Beschreibung:${NC} Mittlere Latenz (48kHz, 2x512, ~10.7ms)"
             elif [ "$current_setting" = "3" ]; then
-                echo -e "${GREEN}Beschreibung:${NC} Ultra-niedrige Latenz (96kHz, 3x128, ~1.3ms)"
+                echo -e "${GREEN}Beschreibung:${NC} Ultra-niedrige Latenz (48kHz, 3x128, ~2.7ms)"
             else
                 echo -e "${GREEN}Beschreibung:${NC} Niedrige Latenz (48kHz, 3x256, ~5.3ms)"
             fi
@@ -106,7 +106,7 @@ set_system_setting() {
     if [ "$setting" = "2" ]; then
         echo -e "${YELLOW}Konfiguration:${NC} Mittlere Latenz (48kHz, 2x512, ~10.7ms)"
     elif [ "$setting" = "3" ]; then
-        echo -e "${YELLOW}Konfiguration:${NC} Ultra-niedrige Latenz (96kHz, 3x128, ~1.3ms)"
+        echo -e "${YELLOW}Konfiguration:${NC} Ultra-niedrige Latenz (48kHz, 3x128, ~2.7ms)"
     else
         echo -e "${YELLOW}Konfiguration:${NC} Niedrige Latenz (48kHz, 3x256, ~5.3ms)"
     fi

@@ -48,7 +48,7 @@ sudo motu-m4-jack-setting-system.sh 2 --restart
 |---------|-------------|--------|---------|----------|
 | 1 - Low | 48 kHz | 3×256 | ~5.3 ms | General audio work |
 | 2 - Medium | 48 kHz | 2×512 | ~10.7 ms | Stable, recommended |
-| 3 - Ultra-Low | 96 kHz | 3×128 | ~1.3 ms | Optimized systems only |
+| 3 - Ultra-Low | 48 kHz | 3×128 | ~2.7 ms | Optimized systems only |
 
 ## GUI
 

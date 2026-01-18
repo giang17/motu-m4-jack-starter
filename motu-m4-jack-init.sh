@@ -20,10 +20,10 @@ SETTING2_PERIOD=512
 SETTING2_DESC="Mittlere Latenz (48kHz, 2x512, ~10.7ms)"
 
 # Setting 3: Ultra-niedrige Latenz
-SETTING3_RATE=96000
+SETTING3_RATE=48000
 SETTING3_NPERIODS=3
 SETTING3_PERIOD=128
-SETTING3_DESC="Ultra-niedrige Latenz (96kHz, 3x128, ~1.3ms)"
+SETTING3_DESC="Ultra-niedrige Latenz (48kHz, 3x128, ~2.7ms)"
 
 # Auswahl des aktiven Settings
 # Priorität: 1. Umgebungsvariable JACK_SETTING, 2. Config-Datei, 3. Standard (1)
