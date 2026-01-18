@@ -96,8 +96,8 @@ install_scripts() {
     )
 
     for script in "${scripts[@]}"; do
-        if [ -f "$SCRIPT_DIR/$script" ]; then
-            cp "$SCRIPT_DIR/$script" /usr/local/bin/
+        if [ -f "$SCRIPT_DIR/scripts/$script" ]; then
+            cp "$SCRIPT_DIR/scripts/$script" /usr/local/bin/
             chmod +x "/usr/local/bin/$script"
             echo -e "  ${GREEN}✓${NC} $script"
         else
@@ -112,8 +112,8 @@ install_gui() {
     echo -e "${YELLOW}Installing GUI...${NC}"
 
     # Install GUI script
-    if [ -f "$SCRIPT_DIR/motu-m4-jack-gui.py" ]; then
-        cp "$SCRIPT_DIR/motu-m4-jack-gui.py" /usr/local/bin/
+    if [ -f "$SCRIPT_DIR/gui/motu-m4-jack-gui.py" ]; then
+        cp "$SCRIPT_DIR/gui/motu-m4-jack-gui.py" /usr/local/bin/
         chmod +x /usr/local/bin/motu-m4-jack-gui.py
         echo -e "  ${GREEN}✓${NC} motu-m4-jack-gui.py"
     else
@@ -121,8 +121,8 @@ install_gui() {
     fi
 
     # Install desktop entry
-    if [ -f "$SCRIPT_DIR/motu-m4-jack-settings.desktop" ]; then
-        cp "$SCRIPT_DIR/motu-m4-jack-settings.desktop" /usr/share/applications/
+    if [ -f "$SCRIPT_DIR/system/motu-m4-jack-settings.desktop" ]; then
+        cp "$SCRIPT_DIR/system/motu-m4-jack-settings.desktop" /usr/share/applications/
         chmod 644 /usr/share/applications/motu-m4-jack-settings.desktop
         echo -e "  ${GREEN}✓${NC} Desktop entry installed"
 
@@ -135,9 +135,9 @@ install_gui() {
     fi
 
     # Install icon
-    if [ -f "$SCRIPT_DIR/motu-m4-jack-settings.svg" ]; then
+    if [ -f "$SCRIPT_DIR/gui/motu-m4-jack-settings.svg" ]; then
         mkdir -p /usr/share/icons/hicolor/scalable/apps/
-        cp "$SCRIPT_DIR/motu-m4-jack-settings.svg" /usr/share/icons/hicolor/scalable/apps/
+        cp "$SCRIPT_DIR/gui/motu-m4-jack-settings.svg" /usr/share/icons/hicolor/scalable/apps/
         chmod 644 /usr/share/icons/hicolor/scalable/apps/motu-m4-jack-settings.svg
         echo -e "  ${GREEN}✓${NC} Icon installed"
 
@@ -155,8 +155,8 @@ install_udev() {
     echo ""
     echo -e "${YELLOW}Installing UDEV rule...${NC}"
 
-    if [ -f "$SCRIPT_DIR/99-motu-m4-jack-combined.rules" ]; then
-        cp "$SCRIPT_DIR/99-motu-m4-jack-combined.rules" /etc/udev/rules.d/
+    if [ -f "$SCRIPT_DIR/system/99-motu-m4-jack-combined.rules" ]; then
+        cp "$SCRIPT_DIR/system/99-motu-m4-jack-combined.rules" /etc/udev/rules.d/
         chmod 644 /etc/udev/rules.d/99-motu-m4-jack-combined.rules
         udevadm control --reload-rules
         udevadm trigger
@@ -171,8 +171,8 @@ install_polkit() {
     echo ""
     echo -e "${YELLOW}Installing Polkit rule (passwordless operation)...${NC}"
 
-    if [ -f "$SCRIPT_DIR/50-motu-m4-jack-settings.rules" ]; then
-        cp "$SCRIPT_DIR/50-motu-m4-jack-settings.rules" /etc/polkit-1/rules.d/
+    if [ -f "$SCRIPT_DIR/system/50-motu-m4-jack-settings.rules" ]; then
+        cp "$SCRIPT_DIR/system/50-motu-m4-jack-settings.rules" /etc/polkit-1/rules.d/
         chmod 644 /etc/polkit-1/rules.d/50-motu-m4-jack-settings.rules
         echo -e "  ${GREEN}✓${NC} Polkit rule installed"
         echo -e "  ${BLUE}Info:${NC} Members of 'audio' group can change settings without password"
@@ -198,12 +198,12 @@ install_systemd_service() {
     local user_home=$(eval echo ~$actual_user)
     local service_dir="$user_home/.config/systemd/user"
 
-    if [ -f "$SCRIPT_DIR/motu-m4-login-check.service" ]; then
+    if [ -f "$SCRIPT_DIR/system/motu-m4-login-check.service" ]; then
         # Create directory as user
         runuser -l "$actual_user" -c "mkdir -p $service_dir"
 
         # Copy service file
-        cp "$SCRIPT_DIR/motu-m4-login-check.service" "$service_dir/"
+        cp "$SCRIPT_DIR/system/motu-m4-login-check.service" "$service_dir/"
         chown "$actual_user:$actual_user" "$service_dir/motu-m4-login-check.service"
 
         # Enable service as user

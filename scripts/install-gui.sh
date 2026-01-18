@@ -23,8 +23,8 @@ fi
 echo -e "${BLUE}=== MOTU M4 JACK GUI Installation ===${NC}"
 echo ""
 
-# Script-Verzeichnis ermitteln
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Script-Verzeichnis ermitteln (Parent-Verzeichnis, da wir in scripts/ sind)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Prüfen ob Python3 und GTK3 verfügbar sind
 echo -e "${YELLOW}Prüfe Abhängigkeiten...${NC}"
@@ -54,12 +54,12 @@ fi
 echo ""
 echo -e "${YELLOW}Installiere GUI-Skript...${NC}"
 
-if [ -f "$SCRIPT_DIR/motu-m4-jack-gui.py" ]; then
-    cp "$SCRIPT_DIR/motu-m4-jack-gui.py" /usr/local/bin/
+if [ -f "$SCRIPT_DIR/gui/motu-m4-jack-gui.py" ]; then
+    cp "$SCRIPT_DIR/gui/motu-m4-jack-gui.py" /usr/local/bin/
     chmod +x /usr/local/bin/motu-m4-jack-gui.py
     echo -e "${GREEN}✓ GUI-Skript installiert nach /usr/local/bin/motu-m4-jack-gui.py${NC}"
 else
-    echo -e "${RED}Fehler:${NC} motu-m4-jack-gui.py nicht gefunden in $SCRIPT_DIR"
+    echo -e "${RED}Fehler:${NC} motu-m4-jack-gui.py nicht gefunden in $SCRIPT_DIR/gui"
     exit 1
 fi
 
@@ -67,8 +67,8 @@ fi
 echo ""
 echo -e "${YELLOW}Installiere Desktop-Eintrag...${NC}"
 
-if [ -f "$SCRIPT_DIR/motu-m4-jack-settings.desktop" ]; then
-    cp "$SCRIPT_DIR/motu-m4-jack-settings.desktop" /usr/share/applications/
+if [ -f "$SCRIPT_DIR/system/motu-m4-jack-settings.desktop" ]; then
+    cp "$SCRIPT_DIR/system/motu-m4-jack-settings.desktop" /usr/share/applications/
     chmod 644 /usr/share/applications/motu-m4-jack-settings.desktop
     echo -e "${GREEN}✓ Desktop-Eintrag installiert${NC}"
 
@@ -84,10 +84,10 @@ fi
 echo ""
 echo -e "${YELLOW}Installiere Icon...${NC}"
 
-if [ -f "$SCRIPT_DIR/motu-m4-jack-settings.svg" ]; then
+if [ -f "$SCRIPT_DIR/gui/motu-m4-jack-settings.svg" ]; then
     # Hicolor Icon-Verzeichnis erstellen falls nicht vorhanden
     mkdir -p /usr/share/icons/hicolor/scalable/apps/
-    cp "$SCRIPT_DIR/motu-m4-jack-settings.svg" /usr/share/icons/hicolor/scalable/apps/
+    cp "$SCRIPT_DIR/gui/motu-m4-jack-settings.svg" /usr/share/icons/hicolor/scalable/apps/
     chmod 644 /usr/share/icons/hicolor/scalable/apps/motu-m4-jack-settings.svg
     echo -e "${GREEN}✓ Icon installiert${NC}"
 
@@ -104,8 +104,8 @@ fi
 echo ""
 echo -e "${YELLOW}Installiere Polkit-Regel...${NC}"
 
-if [ -f "$SCRIPT_DIR/50-motu-m4-jack-settings.rules" ]; then
-    cp "$SCRIPT_DIR/50-motu-m4-jack-settings.rules" /etc/polkit-1/rules.d/
+if [ -f "$SCRIPT_DIR/system/50-motu-m4-jack-settings.rules" ]; then
+    cp "$SCRIPT_DIR/system/50-motu-m4-jack-settings.rules" /etc/polkit-1/rules.d/
     chmod 644 /etc/polkit-1/rules.d/50-motu-m4-jack-settings.rules
     echo -e "${GREEN}✓ Polkit-Regel installiert${NC}"
     echo -e "  ${BLUE}Info:${NC} Mitglieder der 'audio'-Gruppe können Settings ohne Passwort ändern"
