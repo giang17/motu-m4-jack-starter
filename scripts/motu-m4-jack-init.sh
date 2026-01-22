@@ -334,6 +334,23 @@ jack_control status || fail "JACK server is not running correctly"
 # A2J MIDI Bridge (Optional)
 # =============================================================================
 
+# Helper function to safely check a2j status (handles DBus errors at early boot)
+check_a2j_bridge_active() {
+    local status
+    status=$(a2j_control --status 2>&1)
+
+    # Check for DBus errors - if DBus not ready, assume not active
+    if echo "$status" | grep -qi "dbus\|autolaunch"; then
+        return 1
+    fi
+
+    # Check if bridging is enabled
+    if echo "$status" | grep -q "Bridging enabled"; then
+        return 0
+    fi
+    return 1
+}
+
 # Convert string to boolean
 case "${ACTIVE_A2J_ENABLE,,}" in
     true|yes|1|on)
@@ -348,11 +365,10 @@ if [ "$A2J_SHOULD_START" = true ]; then
     echo "Starting ALSA-MIDI Bridge with --export-hw..."
     log "Starting ALSA-MIDI Bridge (A2J_ENABLE=$ACTIVE_A2J_ENABLE)..."
 
-    # Check if a2j is already running
-    a2j_status=$(a2j_control --status 2>&1)
-    if echo "$a2j_status" | grep -q "bridge is running"; then
-        echo "A2J MIDI Bridge is already running."
-        log "A2J MIDI Bridge is already running."
+    # Check if a2j bridge is already active (handles DBus errors)
+    if check_a2j_bridge_active; then
+        echo "A2J MIDI Bridge is already active."
+        log "A2J MIDI Bridge is already active."
     else
         # Enable hardware export (allows ALSA apps to still access hardware)
         a2j_control --ehw || echo "Hardware export possibly already enabled"
@@ -378,9 +394,8 @@ else
     echo "A2J MIDI Bridge disabled (A2J_ENABLE=false)"
     log "A2J MIDI Bridge disabled by configuration"
 
-    # Stop a2j if it's running
-    a2j_status=$(a2j_control --status 2>&1)
-    if echo "$a2j_status" | grep -q "bridge is running"; then
+    # Stop a2j if it's running (handles DBus errors)
+    if check_a2j_bridge_active || pgrep -x "a2jmidid" > /dev/null 2>&1; then
         echo "Stopping existing A2J MIDI Bridge..."
         log "Stopping A2J MIDI Bridge as it's disabled in config"
         a2j_control --stop || echo "Could not stop A2J"

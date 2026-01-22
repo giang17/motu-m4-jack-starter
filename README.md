@@ -144,6 +144,12 @@ See [INSTALL.md](INSTALL.md) for:
 
 ## Changelog
 
+### v2.1.1
+
+- **Fixed DBus crash at boot** - A2J status check now handles DBus errors gracefully
+- **Fixed A2J status display** - Correctly detects "Bridging enabled" instead of "bridge is running"
+- **Improved A2J stop logic** - Uses pgrep fallback when DBus is not available
+
 ### v2.1.0
 
 - **A2J MIDI Bridge toggle** - Enable/disable a2jmidid directly from GUI
