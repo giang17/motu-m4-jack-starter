@@ -1,0 +1,94 @@
+# =============================================================================
+# MOTU M4 JACK Configuration File (v2.0)
+# =============================================================================
+# This file controls JACK audio server settings for the MOTU M4 interface.
+#
+# Location options:
+#   System-wide: /etc/motu-m4/jack-setting.conf
+#   User-specific: ~/.config/motu-m4/jack-setting.conf
+#
+# Priority: User config overrides system config
+#
+# Copyright (C) 2026
+# License: GPL-3.0-or-later
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Sample Rate (Hz)
+# -----------------------------------------------------------------------------
+# Common values: 22050, 44100, 48000, 88200, 96000, 176400, 192000
+# Recommended: 48000 (standard for most audio work)
+#
+JACK_RATE=48000
+
+# -----------------------------------------------------------------------------
+# Period Size (Buffer Size in frames)
+# -----------------------------------------------------------------------------
+# Lower values = lower latency but higher CPU load
+# Higher values = higher latency but more stable
+#
+# Common values: 64, 128, 256, 512, 1024, 2048
+# Recommended starting points:
+#   - 256 for stable systems (most users)
+#   - 128 for low latency (optimized systems)
+#   - 64 for ultra-low latency (requires RT kernel + optimizations)
+#
+JACK_PERIOD=256
+
+# -----------------------------------------------------------------------------
+# Number of Periods
+# -----------------------------------------------------------------------------
+# More periods = more buffering = higher total latency
+# USB audio typically works best with 3 periods
+#
+# Common values: 2, 3, 4
+# Recommended: 2 for low latency, 3 for USB audio stability
+#
+JACK_NPERIODS=2
+
+# -----------------------------------------------------------------------------
+# ALSA-to-JACK MIDI Bridge (a2jmidid)
+# -----------------------------------------------------------------------------
+# Controls whether a2jmidid should be started automatically.
+#
+# When enabled (true):
+#   - ALSA MIDI devices appear in JACK
+#   - Uses --export-hw flag to keep hardware ports available for ALSA apps
+#   - Useful for hardware MIDI controllers and older software
+#
+# When disabled (false):
+#   - No automatic MIDI bridge
+#   - Modern DAWs (Bitwig, Reaper) can access ALSA MIDI directly
+#   - Avoids "device busy" conflicts
+#
+# Values: true, false, yes, no, 1, 0
+# Recommended: false (for modern DAWs like Bitwig/Reaper)
+#              true (if you need MIDI routing in JACK or use hardware controllers)
+#
+A2J_ENABLE=false
+
+# -----------------------------------------------------------------------------
+# Latency Calculation
+# -----------------------------------------------------------------------------
+# Buffer Latency = JACK_PERIOD / JACK_RATE * 1000 ms
+# Round-Trip Latency = (JACK_PERIOD * JACK_NPERIODS) / JACK_RATE * 1000 ms
+#
+# Examples:
+#   48000 Hz, 256 frames, 2 periods = 5.3ms buffer, 10.7ms round-trip
+#   48000 Hz, 128 frames, 2 periods = 2.7ms buffer, 5.3ms round-trip
+#   48000 Hz, 64 frames, 2 periods = 1.3ms buffer, 2.7ms round-trip
+# -----------------------------------------------------------------------------
+
+# =============================================================================
+# Legacy Format (v1.x - still supported for backward compatibility)
+# =============================================================================
+# If you prefer the old preset system, uncomment this instead:
+# JACK_SETTING=2
+#
+# Preset mappings:
+#   1 = Low Latency (48kHz, 128 frames, 2 periods)
+#   2 = Medium Latency (48kHz, 256 frames, 2 periods)
+#   3 = Ultra-Low Latency (48kHz, 64 frames, 2 periods)
+#
+# Note: If JACK_RATE/JACK_PERIOD/JACK_NPERIODS are set, they override JACK_SETTING
+# =============================================================================

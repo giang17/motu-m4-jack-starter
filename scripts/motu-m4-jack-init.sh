@@ -30,6 +30,7 @@ mkdir -p /run/motu-m4 2>/dev/null || true
 DEFAULT_RATE=48000
 DEFAULT_PERIOD=256
 DEFAULT_NPERIODS=3
+DEFAULT_A2J_ENABLE=false
 
 # =============================================================================
 # Legacy Presets (for backward compatibility with v1.x)
@@ -162,6 +163,7 @@ load_config_from_file() {
         local rate=$(read_config_value "$config_file" "JACK_RATE")
         local period=$(read_config_value "$config_file" "JACK_PERIOD")
         local nperiods=$(read_config_value "$config_file" "JACK_NPERIODS")
+        local a2j_enable=$(read_config_value "$config_file" "A2J_ENABLE")
 
         if [ -n "$rate" ]; then
             ACTIVE_RATE="$rate"
@@ -172,8 +174,11 @@ load_config_from_file() {
         if [ -n "$nperiods" ]; then
             ACTIVE_NPERIODS="$nperiods"
         fi
+        if [ -n "$a2j_enable" ]; then
+            ACTIVE_A2J_ENABLE="$a2j_enable"
+        fi
 
-        log "Loaded v2.0 config from $config_file: Rate=$ACTIVE_RATE, Period=$ACTIVE_PERIOD, Nperiods=$ACTIVE_NPERIODS"
+        log "Loaded v2.0 config from $config_file: Rate=$ACTIVE_RATE, Period=$ACTIVE_PERIOD, Nperiods=$ACTIVE_NPERIODS, A2J=$ACTIVE_A2J_ENABLE"
         return 0
     fi
 
@@ -198,6 +203,7 @@ load_config_from_file() {
 ACTIVE_RATE=$DEFAULT_RATE
 ACTIVE_PERIOD=$DEFAULT_PERIOD
 ACTIVE_NPERIODS=$DEFAULT_NPERIODS
+ACTIVE_A2J_ENABLE=$DEFAULT_A2J_ENABLE
 
 # Configuration priority:
 # 1. Environment variables (JACK_RATE, JACK_PERIOD, JACK_NPERIODS)
@@ -228,6 +234,10 @@ if [ -n "${JACK_PERIOD:-}" ]; then
 fi
 if [ -n "${JACK_NPERIODS:-}" ]; then
     ACTIVE_NPERIODS="$JACK_NPERIODS"
+    config_source="environment variables"
+fi
+if [ -n "${A2J_ENABLE:-}" ]; then
+    ACTIVE_A2J_ENABLE="$A2J_ENABLE"
     config_source="environment variables"
 fi
 
@@ -272,7 +282,7 @@ log_config_debug() {
     echo "$(date): CONFIG DEBUG - USER_CONFIG_FILE: $USER_CONFIG_FILE" >> $LOG
     echo "$(date): CONFIG DEBUG - SYSTEM_CONFIG_FILE: $SYSTEM_CONFIG_FILE" >> $LOG
     echo "$(date): CONFIG DEBUG - Config source: $config_source" >> $LOG
-    echo "$(date): CONFIG DEBUG - Final config: Rate=$ACTIVE_RATE, Period=$ACTIVE_PERIOD, Nperiods=$ACTIVE_NPERIODS" >> $LOG
+    echo "$(date): CONFIG DEBUG - Final config: Rate=$ACTIVE_RATE, Period=$ACTIVE_PERIOD, Nperiods=$ACTIVE_NPERIODS, A2J=$ACTIVE_A2J_ENABLE" >> $LOG
     echo "$(date): CONFIG DEBUG - Calculated latency: ${LATENCY_MS}ms" >> $LOG
 }
 
@@ -321,35 +331,59 @@ jack_control start || fail "JACK server could not be started"
 jack_control status || fail "JACK server is not running correctly"
 
 # =============================================================================
-# A2J MIDI Bridge
+# A2J MIDI Bridge (Optional)
 # =============================================================================
-echo "Starting ALSA-MIDI Bridge..."
-log "Starting ALSA-MIDI Bridge..."
 
-# Check if a2j is already running
-a2j_status=$(a2j_control --status 2>&1)
-if echo "$a2j_status" | grep -q "bridge is running"; then
-    echo "A2J MIDI Bridge is already running."
-    log "A2J MIDI Bridge is already running."
-else
-    # Enable hardware export
-    a2j_control --ehw || echo "Hardware export possibly already enabled"
+# Convert string to boolean
+case "${ACTIVE_A2J_ENABLE,,}" in
+    true|yes|1|on)
+        A2J_SHOULD_START=true
+        ;;
+    *)
+        A2J_SHOULD_START=false
+        ;;
+esac
 
-    # Start A2J bridge
-    a2j_control --start || echo "A2J MIDI Bridge could not be started, possibly already active"
+if [ "$A2J_SHOULD_START" = true ]; then
+    echo "Starting ALSA-MIDI Bridge with --export-hw..."
+    log "Starting ALSA-MIDI Bridge (A2J_ENABLE=$ACTIVE_A2J_ENABLE)..."
 
-    # Check and log Real-Time priority for a2j
-    sleep 1  # Brief wait for a2j process to start
-    a2j_pid=$(pgrep a2j)
-    if [ -n "$a2j_pid" ]; then
-        rt_class=$(ps -o cls= -p $a2j_pid 2>/dev/null | tr -d ' ')
-        if [ "$rt_class" = "FF" ]; then
-            echo "A2J is running with Real-Time priority"
-            log "A2J running with Real-Time priority (PID: $a2j_pid)"
-        else
-            echo "A2J is running without Real-Time priority - this is normal"
-            log "A2J running without RT priority (PID: $a2j_pid, Class: $rt_class)"
+    # Check if a2j is already running
+    a2j_status=$(a2j_control --status 2>&1)
+    if echo "$a2j_status" | grep -q "bridge is running"; then
+        echo "A2J MIDI Bridge is already running."
+        log "A2J MIDI Bridge is already running."
+    else
+        # Enable hardware export (allows ALSA apps to still access hardware)
+        a2j_control --ehw || echo "Hardware export possibly already enabled"
+
+        # Start A2J bridge
+        a2j_control --start || echo "A2J MIDI Bridge could not be started, possibly already active"
+
+        # Check and log Real-Time priority for a2j
+        sleep 1  # Brief wait for a2j process to start
+        a2j_pid=$(pgrep a2j)
+        if [ -n "$a2j_pid" ]; then
+            rt_class=$(ps -o cls= -p $a2j_pid 2>/dev/null | tr -d ' ')
+            if [ "$rt_class" = "FF" ]; then
+                echo "A2J is running with Real-Time priority"
+                log "A2J running with Real-Time priority (PID: $a2j_pid)"
+            else
+                echo "A2J is running without Real-Time priority - this is normal"
+                log "A2J running without RT priority (PID: $a2j_pid, Class: $rt_class)"
+            fi
         fi
+    fi
+else
+    echo "A2J MIDI Bridge disabled (A2J_ENABLE=false)"
+    log "A2J MIDI Bridge disabled by configuration"
+
+    # Stop a2j if it's running
+    a2j_status=$(a2j_control --status 2>&1)
+    if echo "$a2j_status" | grep -q "bridge is running"; then
+        echo "Stopping existing A2J MIDI Bridge..."
+        log "Stopping A2J MIDI Bridge as it's disabled in config"
+        a2j_control --stop || echo "Could not stop A2J"
     fi
 fi
 
@@ -363,6 +397,7 @@ echo "  Sample Rate: $ACTIVE_RATE Hz"
 echo "  Buffer Size: $ACTIVE_PERIOD frames"
 echo "  Periods: $ACTIVE_NPERIODS"
 echo "  Latency: ~${LATENCY_MS} ms"
+echo "  A2J MIDI Bridge: $ACTIVE_A2J_ENABLE"
 echo "=============================================="
 
-log "JACK Audio System started successfully: $ACTIVE_DESC"
+log "JACK Audio System started successfully: $ACTIVE_DESC (A2J: $ACTIVE_A2J_ENABLE)"

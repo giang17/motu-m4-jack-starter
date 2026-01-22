@@ -12,6 +12,7 @@ Automatic JACK audio server management for the MOTU M4 USB audio interface. Star
 - **Hot-plug support** - connect M4 anytime, JACK starts automatically
 - **Boot detection** - JACK starts after login if M4 is already connected
 - **Flexible JACK configuration** - customize sample rate, buffer size, and periods
+- **Optional A2J MIDI bridge** - control ALSA-to-JACK MIDI bridge (disabled by default for modern DAWs)
 - **GTK3 GUI** for easy configuration with live latency calculation
 - **Quick presets** - Low, Medium, and Ultra-Low latency with one click
 - **Passwordless operation** via polkit for audio group members
@@ -80,6 +81,30 @@ sudo motu-m4-jack-setting-system.sh 2 --restart
 Latency (ms) = (Buffer Size × Periods) / Sample Rate × 1000
 ```
 
+## ALSA-to-JACK MIDI Bridge
+
+The GUI includes a toggle for the ALSA-to-JACK MIDI bridge (`a2jmidid`):
+
+☑ **Enable ALSA-to-JACK MIDI Bridge (a2jmidid)**
+
+**Default: disabled** - Recommended for modern DAWs like Bitwig Studio and Reaper, which access ALSA MIDI directly and may show "device busy" errors when a2jmidid is running.
+
+**Enable it if you:**
+- Use hardware MIDI controllers that only appear in ALSA
+- Need MIDI routing within JACK (visible in Patchance/Carla)
+- Use older software that expects JACK MIDI ports
+
+**How to use:**
+1. Open the GUI (`motu-m4-jack-gui.py`)
+2. Check/uncheck "Enable ALSA-to-JACK MIDI Bridge"
+3. Click "Apply"
+
+The status indicator shows whether a2jmidid is currently **(running)** or **(stopped)**.
+
+When enabled, the bridge uses `--export-hw` flag to keep hardware ports available for both JACK and ALSA applications.
+
+See [INSTALL.md](INSTALL.md#alsa-to-jack-midi-bridge-a2j) for more details.
+
 ## GUI
 
 Start the GUI via terminal or application menu:
@@ -118,6 +143,13 @@ See [INSTALL.md](INSTALL.md) for:
 - Python 3 + GTK3 (for GUI)
 
 ## Changelog
+
+### v2.1.0
+
+- **A2J MIDI Bridge toggle** - Enable/disable a2jmidid directly from GUI
+- **A2J status indicator** - Shows whether a2jmidid is running or stopped
+- **Automatic status refresh** - Status updates every 5 seconds
+- **Fixes "device busy" errors** - Modern DAWs (Bitwig, Reaper) can now access MIDI directly
 
 ### v2.0.0
 

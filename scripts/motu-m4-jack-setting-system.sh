@@ -162,12 +162,14 @@ show_current() {
         local rate=$(grep "^JACK_RATE=" "$SYSTEM_CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d ' ')
         local period=$(grep "^JACK_PERIOD=" "$SYSTEM_CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d ' ')
         local nperiods=$(grep "^JACK_NPERIODS=" "$SYSTEM_CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d ' ')
+        local a2j_enable=$(grep "^A2J_ENABLE=" "$SYSTEM_CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d ' ')
 
         if [ -n "$rate" ] || [ -n "$period" ] || [ -n "$nperiods" ]; then
             # v2.0 format
             rate=${rate:-48000}
             period=${period:-256}
             nperiods=${nperiods:-3}
+            a2j_enable=${a2j_enable:-false}
 
             local latency=$(calc_latency $rate $period $nperiods)
 
@@ -177,6 +179,7 @@ show_current() {
             echo -e "${CYAN}Buffer Size:${NC}  $period frames"
             echo -e "${CYAN}Periods:${NC}      $nperiods"
             echo -e "${CYAN}Latency:${NC}      ~${latency} ms"
+            echo -e "${CYAN}A2J Bridge:${NC}   $a2j_enable"
             echo ""
             echo -e "${BLUE}Config File:${NC} $SYSTEM_CONFIG_FILE"
         else
@@ -224,7 +227,8 @@ set_custom_setting() {
     local rate=$1
     local period=$2
     local nperiods=$3
-    local restart_flag=$4
+    local a2j_enable=$4
+    local restart_flag=$5
 
     # Validate parameters
     if ! validate_rate "$rate"; then
@@ -261,10 +265,12 @@ set_custom_setting() {
 # Buffer Size: $period frames
 # Periods: $nperiods
 # Calculated Latency: ~${latency} ms
+# A2J MIDI Bridge: $a2j_enable
 
 JACK_RATE=$rate
 JACK_PERIOD=$period
 JACK_NPERIODS=$nperiods
+A2J_ENABLE=$a2j_enable
 EOF
 
     # Set permissions (readable for all)
@@ -276,6 +282,7 @@ EOF
     echo -e "${CYAN}Buffer Size:${NC}  $period frames"
     echo -e "${CYAN}Periods:${NC}      $nperiods"
     echo -e "${CYAN}Latency:${NC}      ~${latency} ms"
+    echo -e "${CYAN}A2J Bridge:${NC}   $a2j_enable"
     echo ""
     echo -e "${BLUE}Saved to:${NC} $SYSTEM_CONFIG_FILE"
 
@@ -295,17 +302,18 @@ EOF
 # Set legacy preset (v1.x compatibility)
 set_preset() {
     local preset=$1
-    local restart_flag=$2
+    local a2j_enable=$2
+    local restart_flag=$3
 
     case "$preset" in
         1)
-            set_custom_setting $PRESET1_RATE $PRESET1_PERIOD $PRESET1_NPERIODS "$restart_flag"
+            set_custom_setting $PRESET1_RATE $PRESET1_PERIOD $PRESET1_NPERIODS "$a2j_enable" "$restart_flag"
             ;;
         2)
-            set_custom_setting $PRESET2_RATE $PRESET2_PERIOD $PRESET2_NPERIODS "$restart_flag"
+            set_custom_setting $PRESET2_RATE $PRESET2_PERIOD $PRESET2_NPERIODS "$a2j_enable" "$restart_flag"
             ;;
         3)
-            set_custom_setting $PRESET3_RATE $PRESET3_PERIOD $PRESET3_NPERIODS "$restart_flag"
+            set_custom_setting $PRESET3_RATE $PRESET3_PERIOD $PRESET3_NPERIODS "$a2j_enable" "$restart_flag"
             ;;
         *)
             echo -e "${RED}Error:${NC} Invalid preset '$preset'. Use 1, 2, or 3."
@@ -397,6 +405,7 @@ show_help() {
     echo "  --rate=<Hz>       Sample rate (22050-192000)"
     echo "  --period=<frames> Buffer size (16-4096)"
     echo "  --nperiods=<n>    Number of periods (2-8)"
+    echo "  --a2j=<bool>      Enable ALSA-to-JACK MIDI bridge (true/false)"
     echo "  --restart, -r     Automatically restart JACK after changes"
     echo ""
     echo -e "${CYAN}Examples:${NC}"
@@ -425,6 +434,7 @@ parse_arguments() {
     local rate=""
     local period=""
     local nperiods=""
+    local a2j_enable=""
     local restart_flag=""
     local preset=""
     local command=""
@@ -439,6 +449,9 @@ parse_arguments() {
                 ;;
             --nperiods=*)
                 nperiods="${arg#*=}"
+                ;;
+            --a2j=*)
+                a2j_enable="${arg#*=}"
                 ;;
             --restart|-r)
                 restart_flag="--restart"
@@ -482,20 +495,23 @@ parse_arguments() {
     # Handle preset (legacy mode)
     if [ -n "$preset" ] && [ -z "$rate" ] && [ -z "$period" ] && [ -z "$nperiods" ]; then
         check_root
-        set_preset "$preset" "$restart_flag"
+        # Use defaults for a2j if not specified
+        a2j_enable=${a2j_enable:-false}
+        set_preset "$preset" "$a2j_enable" "$restart_flag"
         exit 0
     fi
 
     # Handle custom configuration
-    if [ -n "$rate" ] || [ -n "$period" ] || [ -n "$nperiods" ]; then
+    if [ -n "$rate" ] || [ -n "$period" ] || [ -n "$nperiods" ] || [ -n "$a2j_enable" ]; then
         check_root
 
         # Use defaults for missing values
         rate=${rate:-48000}
         period=${period:-256}
         nperiods=${nperiods:-3}
+        a2j_enable=${a2j_enable:-false}
 
-        set_custom_setting "$rate" "$period" "$nperiods" "$restart_flag"
+        set_custom_setting "$rate" "$period" "$nperiods" "$a2j_enable" "$restart_flag"
         exit 0
     fi
 

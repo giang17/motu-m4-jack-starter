@@ -170,6 +170,43 @@ install_udev() {
     fi
 }
 
+# Install config example
+install_config_example() {
+    echo ""
+    echo -e "${YELLOW}Installing configuration example...${NC}"
+
+    mkdir -p /etc/motu-m4
+
+    if [ -f "$SCRIPT_DIR/system/jack-setting.conf.example" ]; then
+        cp "$SCRIPT_DIR/system/jack-setting.conf.example" /etc/motu-m4/
+        chmod 644 /etc/motu-m4/jack-setting.conf.example
+        echo -e "  ${GREEN}✓${NC} Config example installed to /etc/motu-m4/"
+
+        # Create default config if none exists
+        if [ ! -f "/etc/motu-m4/jack-setting.conf" ]; then
+            cat > /etc/motu-m4/jack-setting.conf << 'EOF'
+# MOTU M4 JACK Configuration
+# See jack-setting.conf.example for detailed documentation
+
+JACK_RATE=48000
+JACK_PERIOD=256
+JACK_NPERIODS=2
+
+# ALSA-to-JACK MIDI Bridge
+# Set to true if you need MIDI routing in JACK
+# Set to false for modern DAWs (Bitwig, Reaper) - recommended
+A2J_ENABLE=false
+EOF
+            chmod 644 /etc/motu-m4/jack-setting.conf
+            echo -e "  ${GREEN}✓${NC} Default config created at /etc/motu-m4/jack-setting.conf"
+        else
+            echo -e "  ${BLUE}Info:${NC} Config file already exists, not overwriting"
+        fi
+    else
+        echo -e "  ${YELLOW}⚠${NC} Config example not found - skipped"
+    fi
+}
+
 # Install polkit rule
 install_polkit() {
     echo ""
@@ -277,6 +314,7 @@ main() {
     install_scripts
     install_gui
     install_udev
+    install_config_example
     install_polkit
     install_systemd_service
     check_audio_group

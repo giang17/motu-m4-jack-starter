@@ -144,6 +144,33 @@ sudo motu-m4-jack-setting-system.sh 2 --restart
 sudo motu-m4-jack-setting-system.sh current
 ```
 
+### Configuration Files
+
+The system uses configuration files to store JACK settings:
+
+**System-wide**: `/etc/motu-m4/jack-setting.conf`
+**User-specific**: `~/.config/motu-m4/jack-setting.conf`
+
+Example configuration:
+
+```bash
+# Sample Rate (Hz)
+JACK_RATE=48000
+
+# Period Size (Buffer Size in frames)
+JACK_PERIOD=256
+
+# Number of Periods
+JACK_NPERIODS=2
+
+# ALSA-to-JACK MIDI Bridge (a2jmidid)
+# Values: true, false, yes, no, 1, 0
+# Default: false
+A2J_ENABLE=false
+```
+
+See `system/jack-setting.conf.example` for a complete documented example.
+
 ### Using the GUI
 
 ```bash
@@ -178,6 +205,66 @@ The system uses this priority hierarchy:
 ---
 
 ## JACK Configuration Options
+
+### ALSA-to-JACK MIDI Bridge (A2J)
+
+The `A2J_ENABLE` setting controls whether the ALSA-to-JACK MIDI bridge (`a2jmidid`) starts automatically.
+
+#### When to Enable (A2J_ENABLE=true)
+
+- You use hardware MIDI controllers that only appear in ALSA
+- You need MIDI routing within JACK (e.g., JACK patchbays)
+- You use older software that expects JACK MIDI ports
+
+#### When to Disable (A2J_ENABLE=false) - **Recommended for Modern DAWs**
+
+- You use Bitwig Studio or Reaper (they access ALSA MIDI directly)
+- You get "MIDI device busy" errors in your DAW
+- You don't need MIDI routing in JACK
+
+**How it works when enabled:**
+
+The bridge is started with `--export-hw` flag, which:
+- Makes ALSA MIDI devices appear in JACK
+- Keeps hardware ports available for ALSA applications
+- Reduces "device busy" conflicts
+
+**To change the setting:**
+
+```bash
+# Edit system config
+sudo nano /etc/motu-m4/jack-setting.conf
+
+# Add or change this line:
+A2J_ENABLE=false
+
+# Or for user config:
+mkdir -p ~/.config/motu-m4
+nano ~/.config/motu-m4/jack-setting.conf
+```
+
+Then restart JACK:
+
+```bash
+sudo motu-m4-jack-setting-system.sh current --restart
+```
+
+**Manual control (for testing):**
+
+```bash
+# Start a2jmidid manually
+a2j_control --start
+
+# Stop a2jmidid
+a2j_control --stop
+
+# Check status
+a2j_control --status
+```
+
+---
+
+## JACK Audio Settings
 
 ### Flexible Configuration (v2.0)
 

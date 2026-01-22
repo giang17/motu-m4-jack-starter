@@ -225,12 +225,37 @@ class MotuM4JackGUI(Gtk.Window):
             presets_box.pack_start(btn, True, True, 0)
             self.preset_buttons[preset_key] = btn
 
+        # Options frame
+        options_frame = Gtk.Frame(label=" Options ")
+        options_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        options_box.set_border_width(10)
+        options_frame.add(options_box)
+        main_box.pack_start(options_frame, False, False, 0)
+
+        # A2J MIDI Bridge checkbox
+        a2j_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.a2j_check = Gtk.CheckButton(
+            label="Enable ALSA-to-JACK MIDI Bridge (a2jmidid)"
+        )
+        self.a2j_check.set_active(False)
+        self.a2j_check.set_tooltip_text(
+            "Enable for hardware MIDI controllers in JACK.\n"
+            "Disable for modern DAWs like Bitwig/Reaper to avoid 'device busy' errors."
+        )
+        a2j_box.pack_start(self.a2j_check, False, False, 0)
+
+        # A2J status indicator
+        self.a2j_status_label = Gtk.Label()
+        self.a2j_status_label.set_markup("<small>(stopped)</small>")
+        a2j_box.pack_start(self.a2j_status_label, False, False, 0)
+        options_box.pack_start(a2j_box, False, False, 0)
+
         # Checkbox for automatic restart
         self.restart_check = Gtk.CheckButton(
             label="Automatically restart JACK after changes"
         )
         self.restart_check.set_active(True)
-        main_box.pack_start(self.restart_check, False, False, 0)
+        options_box.pack_start(self.restart_check, False, False, 0)
 
         # Button box
         button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
@@ -460,6 +485,17 @@ class MotuM4JackGUI(Gtk.Window):
                 f"MOTU M4: <span foreground='{self.color_error}'><b>○ Not found</b></span>"
             )
 
+        # A2J Status indicator
+        a2j_running = self.check_a2j_status()
+        if a2j_running:
+            self.a2j_status_label.set_markup(
+                f"<small><span foreground='{self.color_success}'>(running)</span></small>"
+            )
+        else:
+            self.a2j_status_label.set_markup(
+                f"<small><span foreground='{self.color_error}'>(stopped)</span></small>"
+            )
+
         # Current config display
         config = self.read_current_config()
         rate = config.get("rate", 48000)
@@ -478,7 +514,7 @@ class MotuM4JackGUI(Gtk.Window):
 
     def read_current_config(self):
         """Reads the current configuration from config files"""
-        config = {"rate": 48000, "period": 256, "nperiods": 3}
+        config = {"rate": 48000, "period": 256, "nperiods": 3, "a2j_enable": False}
 
         # Try user config first, then system config
         for config_file in [self.USER_CONFIG_FILE, self.SYSTEM_CONFIG_FILE]:
@@ -495,6 +531,14 @@ class MotuM4JackGUI(Gtk.Window):
                                 config["period"] = int(line.split("=")[1].strip())
                             elif line.startswith("JACK_NPERIODS="):
                                 config["nperiods"] = int(line.split("=")[1].strip())
+                            elif line.startswith("A2J_ENABLE="):
+                                value = line.split("=")[1].strip().lower()
+                                config["a2j_enable"] = value in (
+                                    "true",
+                                    "yes",
+                                    "1",
+                                    "on",
+                                )
                             elif line.startswith("JACK_SETTING="):
                                 # Legacy v1.x format
                                 setting = int(line.split("=")[1].strip())
@@ -526,7 +570,20 @@ class MotuM4JackGUI(Gtk.Window):
         # Set periods
         self.periods_spin.set_value(config["nperiods"])
 
+        # Set A2J checkbox
+        self.a2j_check.set_active(config["a2j_enable"])
+
         self.updating_ui = False
+
+    def check_a2j_status(self):
+        """Checks if a2jmidid is running"""
+        try:
+            result = subprocess.run(
+                ["a2j_control", "--status"], capture_output=True, text=True, timeout=5
+            )
+            return "bridge is running" in result.stdout.lower()
+        except Exception:
+            return False
 
     def check_jack_status(self):
         """Checks if JACK is running"""
@@ -568,6 +625,7 @@ class MotuM4JackGUI(Gtk.Window):
         rate = self.get_selected_rate()
         period = self.get_selected_buffer()
         nperiods = self.get_selected_periods()
+        a2j_enable = self.a2j_check.get_active()
         restart = self.restart_check.get_active()
 
         latency = self.calculate_latency(rate, period, nperiods)
@@ -580,21 +638,24 @@ class MotuM4JackGUI(Gtk.Window):
 
         # Run in separate thread
         thread = threading.Thread(
-            target=self.apply_setting, args=(rate, period, nperiods, restart)
+            target=self.apply_setting,
+            args=(rate, period, nperiods, a2j_enable, restart),
         )
         thread.daemon = True
         thread.start()
 
-    def apply_setting(self, rate, period, nperiods, restart):
+    def apply_setting(self, rate, period, nperiods, a2j_enable, restart):
         """Applies the setting (runs in separate thread)"""
         try:
             # Build command with new v2.0 syntax
+            a2j_value = "true" if a2j_enable else "false"
             cmd = [
                 "pkexec",
                 self.SETTING_SCRIPT,
                 f"--rate={rate}",
                 f"--period={period}",
                 f"--nperiods={nperiods}",
+                f"--a2j={a2j_value}",
             ]
             if restart:
                 cmd.append("--restart")
