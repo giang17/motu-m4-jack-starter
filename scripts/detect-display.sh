@@ -68,7 +68,7 @@ detect_display() {
     # Methode 5: DISPLAY Umgebungsvariable des Users
     if [ -n "$user" ]; then
         local user_display
-        user_display=$(su - "$user" -c "echo \$DISPLAY" 2>/dev/null | grep -o ':[0-9]*')
+        user_display=$(su - "$user" -c 'echo $DISPLAY' 2>/dev/null | grep -o ':[0-9]*')
         if [ -n "$user_display" ]; then
             display="$user_display"
             echo "$display"
@@ -113,7 +113,7 @@ analyze_display() {
 
         echo -e "${BLUE}4. DISPLAY Umgebungsvariable von $user:${NC}"
         local user_display
-        user_display=$(su - "$user" -c "echo \$DISPLAY" 2>/dev/null)
+        user_display=$(su - "$user" -c 'echo $DISPLAY' 2>/dev/null)
         echo "   $user_display"
         echo ""
     fi
