@@ -41,6 +41,37 @@ if [ -f "$SYSTEM_CONFIG_FILE" ]; then
 fi
 
 # =============================================================================
+# Auto-Detection Helper
+# =============================================================================
+# Patterns to filter out internal/onboard audio devices
+INTERNAL_DEVICE_PATTERNS="HDA NVidia|HDA Intel|HDA ATI|HDA AMD|HDMI|sof-|PCH"
+
+# Check if any external USB audio interface is connected
+any_external_audio_device_present() {
+    local aplay_output
+    aplay_output=$(LC_ALL=C aplay -l 2>/dev/null)
+
+    # Parse aplay output to find USB audio devices (exclude internal devices)
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^card\ ([0-9]+):\ ([a-zA-Z0-9_]+)\ \[([^\]]+)\] ]]; then
+            local card_name="${BASH_REMATCH[3]}"
+            local card_id="${BASH_REMATCH[2]}"
+
+            # Skip internal devices
+            if echo "$card_name $card_id" | grep -qiE "$INTERNAL_DEVICE_PATTERNS"; then
+                continue
+            fi
+
+            # Found an external USB audio device
+            log "Found external audio device: $card_name ($card_id)"
+            return 0
+        fi
+    done <<< "$aplay_output"
+
+    return 1
+}
+
+# =============================================================================
 # Logging and Error Handling
 # =============================================================================
 
@@ -86,17 +117,12 @@ if [ "$ACTION" = "add" ] && [[ "$KERNEL" == controlC* ]]; then
     APLAY_OUTPUT=$(LC_ALL=C aplay -l 2>&1 || echo "aplay command failed")
     log "DEBUG: aplay output: $APLAY_OUTPUT"
 
-    # Check for device - either using pattern or always start if no pattern configured
+    # Check for ANY external audio device (not just the configured pattern)
+    # The ai-jack-init.sh script will auto-detect and use the available device
     DEVICE_FOUND=false
-    if [ -n "$DEVICE_PATTERN" ]; then
-        if echo "$APLAY_OUTPUT" | grep -q "$DEVICE_PATTERN"; then
-            DEVICE_FOUND=true
-            log "Device matching pattern '$DEVICE_PATTERN' found"
-        fi
-    else
-        # No pattern configured - start on any sound device addition
+    if any_external_audio_device_present; then
         DEVICE_FOUND=true
-        log "No DEVICE_PATTERN configured, starting JACK for any audio device"
+        log "External audio interface detected"
     fi
 
     if [ "$DEVICE_FOUND" = true ]; then
@@ -107,7 +133,7 @@ if [ "$ACTION" = "add" ] && [[ "$KERNEL" == controlC* ]]; then
         # NOTE: Dynamic optimizer runs separately as system service
         log "DEBUG: Dynamic optimizer runs independently as system service"
     else
-        log "No matching audio interface found (pattern: $DEVICE_PATTERN)"
+        log "No external audio interface found (internal devices filtered)"
     fi
 
 # =============================================================================
@@ -124,25 +150,19 @@ elif [ "$ACTION" = "remove" ] && [[ "$KERNEL" == card* ]]; then
     USER_LOGGED_IN=$(who | grep "(:" | head -n1 | awk '{print $1}' || echo "")
 
     if [ -z "$USER_LOGGED_IN" ]; then
-        log "No user logged in, skipping JACK shutdown"
+        log "No user logged in, skipping JACK check"
         exit 0
     fi
 
     sleep 2
 
-    # Check if device is still available
-    DEVICE_STILL_PRESENT=false
-    if [ -n "$DEVICE_PATTERN" ]; then
-        if LC_ALL=C aplay -l | grep -q "$DEVICE_PATTERN"; then
-            DEVICE_STILL_PRESENT=true
-        fi
-    fi
-
-    if [ "$DEVICE_STILL_PRESENT" = false ]; then
-        log "Audio interface no longer available, user $USER_LOGGED_IN logged in, stopping JACK"
-        /usr/local/bin/ai-jack-shutdown.sh >> $LOG 2>&1 || log "ERROR: Shutdown script failed"
+    # Check if ANY external audio device is still available
+    if any_external_audio_device_present; then
+        log "Another external audio device still available, restarting JACK with new device"
+        /usr/local/bin/ai-jack-autostart.sh >> $LOG 2>&1 || log "ERROR: Autostart script failed"
     else
-        log "Audio interface still available"
+        log "No external audio interface remaining, user $USER_LOGGED_IN logged in, stopping JACK"
+        /usr/local/bin/ai-jack-shutdown.sh >> $LOG 2>&1 || log "ERROR: Shutdown script failed"
     fi
 fi
 

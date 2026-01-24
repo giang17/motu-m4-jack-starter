@@ -327,17 +327,67 @@ log_config_debug() {
 log_config_debug
 
 # =============================================================================
-# Hardware Check
+# Auto-Detect Function
 # =============================================================================
 
-# Check if audio interface is available (only if DEVICE_PATTERN is set)
-if [ -n "$ACTIVE_DEVICE_PATTERN" ]; then
-    if ! LC_ALL=C aplay -l | grep -q "$ACTIVE_DEVICE_PATTERN"; then
-        fail "Audio interface '$ACTIVE_DEVICE_PATTERN' not found. Please connect or power on the device."
+# Patterns to filter out internal/onboard audio devices
+INTERNAL_DEVICE_PATTERNS="HDA NVidia|HDA Intel|HDA ATI|HDA AMD|HDMI|sof-|PCH"
+
+# Auto-detect the first available USB audio interface
+auto_detect_device() {
+    local aplay_output
+    aplay_output=$(LC_ALL=C aplay -l 2>/dev/null)
+
+    # Parse aplay output to find USB audio devices (exclude internal devices)
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^card\ ([0-9]+):\ ([a-zA-Z0-9_]+)\ \[([^\]]+)\] ]]; then
+            local card_num="${BASH_REMATCH[1]}"
+            local card_id="${BASH_REMATCH[2]}"
+            local card_name="${BASH_REMATCH[3]}"
+
+            # Skip internal devices
+            if echo "$card_name $card_id" | grep -qiE "$INTERNAL_DEVICE_PATTERNS"; then
+                continue
+            fi
+
+            # Found an external USB audio device
+            echo "hw:${card_id},0"
+            return 0
+        fi
+    done <<< "$aplay_output"
+
+    return 1
+}
+
+# =============================================================================
+# Hardware Check and Auto-Detection
+# =============================================================================
+
+# ALWAYS auto-detect the currently available device
+# This ensures hotplug works correctly when switching between devices
+# The config file is only used for audio parameters (rate, period, nperiods)
+
+log "Auto-detecting available audio interface..."
+detected_device=$(auto_detect_device)
+
+if [ -n "$detected_device" ]; then
+    # Extract card_id for pattern
+    detected_card_id=$(echo "$detected_device" | sed -n 's/hw:\([^,]*\).*/\1/p')
+
+    if [ "$detected_device" != "$ACTIVE_AUDIO_DEVICE" ]; then
+        log "Auto-detected audio device: $detected_device (config had: $ACTIVE_AUDIO_DEVICE)"
+        echo "Auto-detected audio device: $detected_device"
+    else
+        log "Using configured audio device: $detected_device"
     fi
-    log "Hardware check passed: Found device matching pattern '$ACTIVE_DEVICE_PATTERN'"
+
+    ACTIVE_AUDIO_DEVICE="$detected_device"
+    ACTIVE_DEVICE_PATTERN="$detected_card_id"
+
+    # Recalculate description
+    ACTIVE_DESC="Custom (${ACTIVE_RATE}Hz, ${ACTIVE_NPERIODS}x${ACTIVE_PERIOD}, ~${LATENCY_MS}ms)"
 else
-    log "Hardware check skipped: No DEVICE_PATTERN configured (using AUDIO_DEVICE=$ACTIVE_AUDIO_DEVICE directly)"
+    fail "No audio interface found. Please connect a USB audio device."
 fi
 
 # =============================================================================

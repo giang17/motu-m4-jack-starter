@@ -170,20 +170,6 @@ class AudioInterfaceJackGUI(Gtk.Window):
         device_hbox.pack_start(refresh_devices_btn, False, False, 0)
         device_grid.attach(device_hbox, 1, 0, 1, 1)
 
-        # Device pattern (optional)
-        pattern_label = Gtk.Label(label="Detection Pattern:")
-        pattern_label.set_halign(Gtk.Align.END)
-        device_grid.attach(pattern_label, 0, 1, 1, 1)
-
-        self.pattern_entry = Gtk.Entry()
-        self.pattern_entry.set_placeholder_text("e.g., M4, Scarlett, Babyface (optional)")
-        self.pattern_entry.set_tooltip_text(
-            "Pattern to detect device presence (used for auto-start).\n"
-            "Leave empty to disable hardware detection."
-        )
-        self.pattern_entry.set_hexpand(True)
-        device_grid.attach(self.pattern_entry, 1, 1, 1, 1)
-
         # Configuration frame
         config_frame = Gtk.Frame(label=" JACK Configuration ")
         config_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -506,14 +492,11 @@ class AudioInterfaceJackGUI(Gtk.Window):
                     })
                     self.device_combo.append_text(display_name)
 
-            # Add manual entry option
-            self.device_combo.append_text("Custom (enter manually)...")
-
-            # Select first device or load from config
+            # Select first device
             if self.detected_devices:
+                self.updating_ui = True
                 self.device_combo.set_active(0)
-            else:
-                self.device_combo.set_active(len(self.detected_devices))  # Custom
+                self.updating_ui = False
 
             logger.info("Detected %d audio devices", len(self.detected_devices))
 
@@ -527,19 +510,15 @@ class AudioInterfaceJackGUI(Gtk.Window):
     def on_refresh_devices_clicked(self, button):
         """Handler for refresh devices button"""
         self.refresh_audio_devices()
+        # refresh_audio_devices() already selects first device and updates pattern
         self.set_status("Audio devices refreshed")
 
     def on_device_changed(self, combo):
         """Handler for device selection change"""
         if self.updating_ui:
             return
-
-        idx = combo.get_active()
-        if idx >= 0 and idx < len(self.detected_devices):
-            device = self.detected_devices[idx]
-            # Auto-fill pattern with card_id
-            if not self.pattern_entry.get_text():
-                self.pattern_entry.set_text(device["card_id"])
+        # Pattern is independent - user can set it manually if needed
+        # The init script auto-detects anyway
 
     def get_selected_device(self):
         """Returns the selected ALSA device identifier"""
@@ -549,21 +528,15 @@ class AudioInterfaceJackGUI(Gtk.Window):
         # Fallback to default
         return "hw:0,0"
 
-    def select_device_in_combo(self, device_id, pattern=""):
-        """Selects the given device in the combo box and sets the pattern"""
+    def select_device_in_combo(self, device_id):
+        """Selects the given device in the combo box"""
         self.updating_ui = True
         for i, dev in enumerate(self.detected_devices):
             if dev["id"] == device_id:
                 self.device_combo.set_active(i)
                 logger.info("Auto-selected device: %s", device_id)
                 break
-        # Set the pattern from config (preserve empty if config has no pattern)
-        self.pattern_entry.set_text(pattern)
         self.updating_ui = False
-
-    def get_device_pattern(self):
-        """Returns the device pattern for hardware detection"""
-        return self.pattern_entry.get_text().strip()
 
     def get_selected_rate(self):
         """Returns the selected sample rate"""
@@ -667,29 +640,21 @@ class AudioInterfaceJackGUI(Gtk.Window):
                 f"JACK Server: <span foreground='{self.color_error}'><b>Stopped</b></span>"
             )
 
-        # Hardware Status
-        config = self.read_current_config()
-        pattern = config.get("device_pattern", "")
-        device = config.get("audio_device", "hw:0,0")
+        # Refresh device list to see what's currently connected
+        self.refresh_audio_devices()
 
-        hardware_found = self.check_hardware(pattern, device)
+        self.previous_hardware_found = bool(self.detected_devices)
 
-        # Auto-refresh device list when hardware state changes (disconnected -> connected)
-        if hardware_found and self.previous_hardware_found is False:
-            logger.info("Hardware reconnected, refreshing device list")
-            self.refresh_audio_devices()
-            self.select_device_in_combo(device, pattern)
-        self.previous_hardware_found = hardware_found
-
-        if hardware_found:
+        # Show the actually connected device (first in list if available)
+        if self.detected_devices:
+            connected_device = self.detected_devices[0]
             self.hardware_status_label.set_markup(
-                f"Audio Device: <span foreground='{self.color_success}'><b>Connected</b></span> ({device})"
+                f"Audio Device: <span foreground='{self.color_success}'><b>Connected</b></span> ({connected_device['id']})"
             )
         else:
-            label = f"Audio Device: <span foreground='{self.color_error}'><b>Not found</b></span>"
-            if pattern:
-                label += f" (pattern: {pattern})"
-            self.hardware_status_label.set_markup(label)
+            self.hardware_status_label.set_markup(
+                f"Audio Device: <span foreground='{self.color_error}'><b>Not found</b></span>"
+            )
 
         # A2J Status indicator
         a2j_running = self.check_a2j_status()
@@ -702,7 +667,8 @@ class AudioInterfaceJackGUI(Gtk.Window):
                 f"<small><span foreground='{self.color_error}'>(stopped)</span></small>"
             )
 
-        # Current config display
+        # Current config display - read from config file
+        config = self.read_current_config()
         rate = config.get("rate", 48000)
         period = config.get("period", 256)
         nperiods = config.get("nperiods", 3)
@@ -786,20 +752,11 @@ class AudioInterfaceJackGUI(Gtk.Window):
 
         self.updating_ui = True
 
-        # Set device
-        device_id = config["audio_device"]
-        device_found = False
-        for i, dev in enumerate(self.detected_devices):
-            if dev["id"] == device_id:
-                self.device_combo.set_active(i)
-                device_found = True
-                break
-        if not device_found and self.detected_devices:
+        # Select first available device (auto-detect behavior)
+        if self.detected_devices:
             self.device_combo.set_active(0)
 
-        # Set pattern
-        self.pattern_entry.set_text(config["device_pattern"])
-
+        # Load pattern from config (user can modify for manual override)
         # Set rate
         if config["rate"] in self.SAMPLE_RATES:
             self.rate_combo.set_active(self.SAMPLE_RATES.index(config["rate"]))
@@ -914,7 +871,6 @@ class AudioInterfaceJackGUI(Gtk.Window):
     def on_apply_clicked(self, button):
         """Handler for apply button"""
         device = self.get_selected_device()
-        pattern = self.get_device_pattern()
         rate = self.get_selected_rate()
         period = self.get_selected_buffer()
         nperiods = self.get_selected_periods()
@@ -932,14 +888,18 @@ class AudioInterfaceJackGUI(Gtk.Window):
         # Run in separate thread
         thread = threading.Thread(
             target=self.apply_setting,
-            args=(device, pattern, rate, period, nperiods, a2j_enable, restart),
+            args=(device, rate, period, nperiods, a2j_enable, restart),
         )
         thread.daemon = True
         thread.start()
 
-    def apply_setting(self, device, pattern, rate, period, nperiods, a2j_enable, restart):
+    def apply_setting(self, device, rate, period, nperiods, a2j_enable, restart):
         """Applies the setting (runs in separate thread)"""
         try:
+            # Extract card_id from device for pattern (e.g., "M4" from "hw:M4,0")
+            pattern = re.match(r"hw:([^,]+)", device)
+            pattern = pattern.group(1) if pattern else ""
+
             # Build command with v3.0 syntax
             a2j_value = "true" if a2j_enable else "false"
             cmd = [
@@ -955,8 +915,8 @@ class AudioInterfaceJackGUI(Gtk.Window):
             if restart:
                 cmd.append("--restart")
 
-            logger.info("Applying settings: device=%s, pattern=%s, rate=%d, period=%d, nperiods=%d, a2j=%s, restart=%s",
-                       device, pattern, rate, period, nperiods, a2j_value, restart)
+            logger.info("Applying settings: device=%s, rate=%d, period=%d, nperiods=%d, a2j=%s, restart=%s",
+                       device, rate, period, nperiods, a2j_value, restart)
 
             # Execute script
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
