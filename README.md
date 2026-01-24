@@ -4,7 +4,7 @@ Automatic JACK audio server management for USB audio interfaces. Starts and stop
 
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Ubuntu Studio](https://img.shields.io/badge/Ubuntu%20Studio-24.04+-orange.svg)
-![Version](https://img.shields.io/badge/version-3.0.0-green.svg)
+![Version](https://img.shields.io/badge/version-3.0.1-green.svg)
 
 ## Features
 
@@ -20,16 +20,15 @@ Automatic JACK audio server management for USB audio interfaces. Starts and stop
 
 ## Supported Audio Interfaces
 
-Works with any JACK-compatible USB audio interface, including:
+Works with any JACK-compatible USB audio interface. Devices are **auto-detected** - no manual configuration needed!
 
-| Interface | AUDIO_DEVICE | DEVICE_PATTERN |
-|-----------|--------------|----------------|
-| MOTU M4 | `hw:M4,0` | `M4` |
-| Focusrite Scarlett Solo/2i2 | `hw:USB,0` | `Scarlett` |
-| Steinberg UR242 | `hw:UR242,0` | `UR242` |
-| RME Babyface Pro | `hw:Babyface,0` | `Babyface` |
-| Native Instruments | `hw:Audio,0` | `Komplete` |
-| Generic USB Audio | `hw:0,0` | *(leave empty)* |
+Tested with:
+- MOTU M4
+- Focusrite Scarlett Solo/2i2
+- Steinberg UR242
+- RME Babyface Pro
+- Native Instruments Komplete Audio
+- Any USB Audio Class compliant device
 
 ## Quick Start
 
@@ -41,57 +40,37 @@ cd ai-jack-starter
 # 2. Run the installer (installs everything)
 sudo ./install.sh
 
-# 3. Configure your device (installer prompts for this)
-#    Or configure manually:
-sudo ai-jack-setting-system.sh --device=hw:M4,0 --pattern=M4 --restart
+# 3. Done! Your audio device is auto-detected.
+#    Optional: Open the GUI to adjust JACK settings:
+ai-jack-gui.py
 ```
 
 The installer automatically:
-- Detects connected audio devices
-- Prompts for device configuration
 - Installs all scripts, UDEV rules, GUI, polkit rules, and systemd services
+- Audio devices are auto-detected at runtime - no manual configuration needed
+- Hot-plug support: connect any USB audio interface and JACK starts automatically
 
 For manual installation, see [INSTALL.md](INSTALL.md).
 
 ## Device Configuration
 
-### Finding Your Device
+**Audio devices are auto-detected!** Simply connect your USB audio interface and JACK will start automatically.
+
+### Configuration File (Optional)
+
+The config file `/etc/ai-jack/jack-setting.conf` stores JACK audio parameters:
 
 ```bash
-# List all audio devices
-aplay -l
-```
-
-Example output:
-```
-card 0: PCH [HDA Intel PCH], device 0: ALC892 Analog [ALC892 Analog]
-card 2: M4 [M4], device 0: USB Audio [USB Audio]
-```
-
-From this output:
-- `AUDIO_DEVICE=hw:M4,0` (card name "M4", device 0)
-- `DEVICE_PATTERN=M4` (unique identifier for detection)
-
-### Configuration File
-
-Edit `/etc/ai-jack/jack-setting.conf`:
-
-```bash
-# Device Settings
-AUDIO_DEVICE=hw:M4,0
-DEVICE_PATTERN=M4
-
-# JACK Settings
+# JACK Settings (device is auto-detected)
 JACK_RATE=48000
 JACK_PERIOD=256
 JACK_NPERIODS=2
 
 # Optional
 A2J_ENABLE=false
-DBUS_TIMEOUT=30
 ```
 
-See [jack-setting.conf.example](system/jack-setting.conf.example) for detailed documentation.
+Use the GUI to change settings - it's easier than editing the config file manually.
 
 ## JACK Configuration
 
@@ -100,11 +79,8 @@ See [jack-setting.conf.example](system/jack-setting.conf.example) for detailed d
 Configure any combination of sample rate, buffer size, and periods:
 
 ```bash
-# Custom configuration
+# Custom configuration (device is auto-detected)
 sudo ai-jack-setting-system.sh --rate=96000 --period=128 --nperiods=2 --restart
-
-# Change device
-sudo ai-jack-setting-system.sh --device=hw:Scarlett,0 --pattern=Scarlett --restart
 
 # Show current configuration
 sudo ai-jack-setting-system.sh current
@@ -174,7 +150,8 @@ Or find it in: **Audio/Video → Audio Interface JACK Settings**
 
 ### GUI Features
 
-- **Device dropdown** - Select from detected audio interfaces
+- **Auto-detection** - Automatically detects connected USB audio interfaces
+- **Device dropdown** - Select from detected audio interfaces (if multiple connected)
 - **Sample Rate dropdown** - Select from 22050 Hz to 192000 Hz
 - **Buffer Size dropdown** - Select from 16 to 4096 frames
 - **Periods spinner** - Adjust from 2 to 8 periods

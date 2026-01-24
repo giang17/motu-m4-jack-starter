@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 
 For detailed release notes, see [GitHub Releases](https://github.com/giang17/ai-jack-starter/releases).
 
+## [v1.0.1](https://github.com/giang17/ai-jack-starter/releases/tag/v1.0.1) - 2026-01-24
+
+### Hotplug Fix
+
+#### Fixed
+- **Hot-plug device switching** - Switching between different audio interfaces (e.g., MOTU M4 ↔ Scarlett Solo) now works correctly
+- **Device auto-detection** - JACK always uses the currently connected device, regardless of config file
+
+#### Removed
+- **Detection Pattern input field** - No longer needed, devices are fully auto-detected
+- **"Custom (enter manually)" option** - Removed from device dropdown
+
+#### Changed
+- Init script now always auto-detects the available device instead of using config
+- udev handler checks for any external USB audio device, not just configured pattern
+- GUI shows the actually connected device in status display
+- Pattern is auto-extracted from device name (e.g., `hw:M4,0` → `M4`)
+
+---
+
 ## [v1.0.0](https://github.com/giang17/ai-jack-starter/releases/tag/v1.0.0) - 2026-01-24
 
 ### Initial Release - Universal Audio Interface JACK Starter
