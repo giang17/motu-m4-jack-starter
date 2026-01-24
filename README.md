@@ -25,7 +25,8 @@ Works with any JACK-compatible USB audio interface, including:
 | Interface | AUDIO_DEVICE | DEVICE_PATTERN |
 |-----------|--------------|----------------|
 | MOTU M4 | `hw:M4,0` | `M4` |
-| Focusrite Scarlett 2i2 | `hw:USB,0` | `Scarlett` |
+| Focusrite Scarlett Solo/2i2 | `hw:USB,0` | `Scarlett` |
+| Steinberg UR242 | `hw:UR242,0` | `UR242` |
 | RME Babyface Pro | `hw:Babyface,0` | `Babyface` |
 | Native Instruments | `hw:Audio,0` | `Komplete` |
 | Generic USB Audio | `hw:0,0` | *(leave empty)* |
@@ -168,6 +169,8 @@ ai-jack-gui.py
 ```
 
 Or find it in: **Audio/Video → Audio Interface JACK Settings**
+
+![Audio Interface JACK Settings GUI](gui.png)
 
 ### GUI Features
 
