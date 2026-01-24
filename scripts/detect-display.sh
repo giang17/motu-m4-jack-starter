@@ -46,7 +46,7 @@ detect_display() {
     # Method 3: Process-based detection
     if [ -n "$user" ]; then
         local proc_display
-        proc_display=$(ps -u "$user" -o args | grep -E 'Xorg|X11' | grep -o -- '-display [^ ]*' | head -n1 | awk '{print $2}')
+        proc_display=$(pgrep -u "$user" -f 'Xorg|X11' -a | grep -o -- '-display [^ ]*' | head -n1 | awk '{print $2}')
         if [ -n "$proc_display" ]; then
             display="$proc_display"
             echo "$display"
@@ -55,7 +55,7 @@ detect_display() {
 
         # Alternative process detection
         local proc_display_alt
-        proc_display_alt=$(ps -u "$user" -o args | grep -E '/usr/lib/xorg/Xorg' | grep -o -- ':[0-9]*' | head -n1)
+        proc_display_alt=$(pgrep -u "$user" -f '/usr/lib/xorg/Xorg' -a | grep -o -- ':[0-9]*' | head -n1)
         if [ -n "$proc_display_alt" ]; then
             display="$proc_display_alt"
             echo "$display"
@@ -77,7 +77,7 @@ detect_display() {
     # Method 5: User's DISPLAY environment variable
     if [ -n "$user" ]; then
         local user_display
-        user_display=$(su - "$user" -c 'echo $DISPLAY' 2>/dev/null | grep -o ':[0-9]*')
+        user_display=$(su - "$user" -c "echo \$DISPLAY" 2>/dev/null | grep -o ':[0-9]*')
         if [ -n "$user_display" ]; then
             display="$user_display"
             echo "$display"
@@ -119,14 +119,14 @@ analyze_display() {
 
     if [ -n "$user" ]; then
         echo -e "${BLUE}3. X11 Processes for User $user:${NC}"
-        ps -u "$user" -o pid,args | grep -E 'Xorg|X11|xinit' | while read -r line; do
+        pgrep -u "$user" -f 'Xorg|X11|xinit' -a | while read -r line; do
             echo "   $line"
         done
         echo ""
 
         echo -e "${BLUE}4. DISPLAY Environment Variable for $user:${NC}"
         local user_display
-        user_display=$(su - "$user" -c 'echo $DISPLAY' 2>/dev/null)
+        user_display=$(su - "$user" -c "echo \$DISPLAY" 2>/dev/null)
         echo "   $user_display"
         echo ""
     fi
