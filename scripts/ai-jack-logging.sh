@@ -45,7 +45,8 @@ declare -A LOG_LEVEL_MAP=(
     ["ERROR"]=$LOG_LEVEL_ERROR
 )
 
-# Map level numbers to names (for output)
+# Map level numbers to names (reserved for future use)
+# shellcheck disable=SC2034
 declare -a LOG_LEVEL_NAMES=("DEBUG" "INFO" "WARN" "ERROR")
 
 # =============================================================================

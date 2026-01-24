@@ -40,8 +40,9 @@ fi
 # Initialize logging for this script
 init_logging "jack-init" "jack-init.log"
 
-# Legacy LOG variable for compatibility
+# Legacy LOG variable for compatibility (used by subshell redirections)
 LOG=$(get_log_file)
+export LOG
 
 # =============================================================================
 # Default Configuration
@@ -350,7 +351,7 @@ auto_detect_device() {
     # Parse aplay output to find USB audio devices (exclude internal devices)
     while IFS= read -r line; do
         if [[ "$line" =~ ^card\ ([0-9]+):\ ([a-zA-Z0-9_]+)\ \[([^\]]+)\] ]]; then
-            local card_num="${BASH_REMATCH[1]}"
+            # card_num unused but kept for regex clarity: local card_num="${BASH_REMATCH[1]}"
             local card_id="${BASH_REMATCH[2]}"
             local card_name="${BASH_REMATCH[3]}"
 
