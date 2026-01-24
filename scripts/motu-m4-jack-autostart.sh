@@ -67,23 +67,49 @@ if ! who | grep -q "^$USER "; then
 fi
 
 # =============================================================================
+# Configuration Loading
+# =============================================================================
+
+# Load DBus timeout from configuration (default: 30 seconds)
+DBUS_TIMEOUT=30
+
+# Try system config first
+if [ -f "/etc/motu-m4/jack-setting.conf" ]; then
+    CONF_TIMEOUT=$(grep -E "^DBUS_TIMEOUT=" /etc/motu-m4/jack-setting.conf 2>/dev/null | cut -d= -f2)
+    if [ -n "$CONF_TIMEOUT" ]; then
+        DBUS_TIMEOUT="$CONF_TIMEOUT"
+        log "Loaded DBUS_TIMEOUT=$DBUS_TIMEOUT from system config"
+    fi
+fi
+
+# User config overrides system config
+USER_CONFIG="$USER_HOME/.config/motu-m4/jack-setting.conf"
+if [ -f "$USER_CONFIG" ]; then
+    CONF_TIMEOUT=$(grep -E "^DBUS_TIMEOUT=" "$USER_CONFIG" 2>/dev/null | cut -d= -f2)
+    if [ -n "$CONF_TIMEOUT" ]; then
+        DBUS_TIMEOUT="$CONF_TIMEOUT"
+        log "Loaded DBUS_TIMEOUT=$DBUS_TIMEOUT from user config"
+    fi
+fi
+
+# =============================================================================
 # DBus Session Bus Verification
 # =============================================================================
 
 # Wait for DBUS socket to become available
 DBUS_SOCKET="/run/user/$USER_ID/bus"
 WAIT_TIME=0
-MAX_WAIT=30
 
-log "Checking DBUS socket: $DBUS_SOCKET"
-while [ ! -e "$DBUS_SOCKET" ] && [ $WAIT_TIME -lt $MAX_WAIT ]; do
-    log "Waiting for DBUS socket... ($WAIT_TIME/$MAX_WAIT s)"
+log "Checking DBUS socket: $DBUS_SOCKET (timeout: ${DBUS_TIMEOUT}s)"
+while [ ! -e "$DBUS_SOCKET" ] && [ $WAIT_TIME -lt $DBUS_TIMEOUT ]; do
+    log "Waiting for DBUS socket... ($WAIT_TIME/${DBUS_TIMEOUT}s)"
     sleep 1
     WAIT_TIME=$((WAIT_TIME + 1))
 done
 
 if [ ! -e "$DBUS_SOCKET" ]; then
-    log "DBUS socket not found after $MAX_WAIT seconds. Continuing anyway."
+    log "WARNING: DBUS socket not found after $DBUS_TIMEOUT seconds. Continuing anyway."
+    log "HINT: Increase DBUS_TIMEOUT in /etc/motu-m4/jack-setting.conf if this happens frequently."
 fi
 
 log "Starting JACK directly for user: $USER (ID: $USER_ID)"

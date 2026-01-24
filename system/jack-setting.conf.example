@@ -68,6 +68,26 @@ JACK_NPERIODS=2
 A2J_ENABLE=false
 
 # -----------------------------------------------------------------------------
+# DBus Session Bus Timeout (seconds)
+# -----------------------------------------------------------------------------
+# Maximum time to wait for DBus session bus to become available at startup.
+# This is important for reliable JACK autostart, especially at boot time
+# when the user session is still initializing.
+#
+# The DBus session bus is required for:
+#   - jack_control communication with JACK server
+#   - a2jmidid control commands
+#   - System notifications
+#
+# If DBus is not available after this timeout, JACK startup continues anyway
+# but some features may not work correctly.
+#
+# Default: 30 seconds (sufficient for most systems)
+# Increase if you experience DBus-related errors in logs
+#
+DBUS_TIMEOUT=30
+
+# -----------------------------------------------------------------------------
 # Latency Calculation
 # -----------------------------------------------------------------------------
 # Buffer Latency = JACK_PERIOD / JACK_RATE * 1000 ms
