@@ -1,13 +1,13 @@
 [Unit]
-Description=MOTU M4 Login Check for already connected devices
+Description=Audio Interface Login Check for already connected devices
 After=graphical-session.target
-# Zusätzliche Verzögerung nach dem grafischen Login
+# Additional delay after graphical login
 Wants=graphical-session.target
 
 [Service]
 Type=oneshot
 ExecStartPre=/bin/sleep 10
-ExecStart=/usr/local/bin/motu-m4-login-check.sh
+ExecStart=/usr/local/bin/ai-login-check.sh
 RemainAfterExit=no
 Environment=DISPLAY=:1
 

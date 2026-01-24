@@ -1,0 +1,12 @@
+# Audio Interface JACK Starter - UDEV Rules
+# Triggers JACK autostart/shutdown when audio interfaces are connected/disconnected
+# Works with any JACK-compatible audio interface
+
+# Preparation: Create runtime directory
+SUBSYSTEM=="sound", ACTION=="add|remove", RUN+="/bin/sh -c 'mkdir -p /run/ai-jack && chmod 777 /run/ai-jack'"
+
+# Sound controller added - trigger JACK autostart
+SUBSYSTEM=="sound", KERNEL=="controlC*", ACTION=="add", RUN+="/usr/local/bin/ai-udev-handler.sh add %k"
+
+# Sound card removed - trigger JACK shutdown
+SUBSYSTEM=="sound", KERNEL=="card*", ACTION=="remove", RUN+="/usr/local/bin/ai-udev-handler.sh remove %k"

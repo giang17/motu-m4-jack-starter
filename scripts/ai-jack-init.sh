@@ -1,28 +1,29 @@
 #!/bin/bash
 
 # =============================================================================
-# MOTU M4 JACK Initialization Script - v2.0
+# Audio Interface JACK Initialization Script - v3.0
 # =============================================================================
 # Flexible JACK configuration with customizable sample rate, buffer size,
-# and periods. Reads configuration from config file or uses defaults.
+# periods, and audio device. Works with any JACK-compatible audio interface.
 #
-# Configuration file format (v2.0):
+# Configuration file format (v3.0):
+#   AUDIO_DEVICE=hw:M4,0
+#   DEVICE_PATTERN=M4
 #   JACK_RATE=48000
 #   JACK_PERIOD=256
 #   JACK_NPERIODS=3
 #
-# Legacy format (v1.x) is still supported:
-#   JACK_SETTING=1|2|3
+# Legacy format (v1.x/v2.0) is still supported.
 #
 # Copyright (C) 2025
 # License: GPL-3.0-or-later
 # =============================================================================
 
 # Log file path (consistent with other scripts)
-LOG="/run/motu-m4/jack-init.log"
+LOG="/run/ai-jack/jack-init.log"
 
 # Ensure log directory exists
-mkdir -p /run/motu-m4 2>/dev/null || true
+mkdir -p /run/ai-jack 2>/dev/null || true
 
 # =============================================================================
 # Default Configuration
@@ -31,6 +32,8 @@ DEFAULT_RATE=48000
 DEFAULT_PERIOD=256
 DEFAULT_NPERIODS=3
 DEFAULT_A2J_ENABLE=false
+DEFAULT_AUDIO_DEVICE="hw:0,0"
+DEFAULT_DEVICE_PATTERN=""
 
 # =============================================================================
 # Legacy Presets (for backward compatibility with v1.x)
@@ -53,7 +56,7 @@ PRESET3_PERIOD=64
 # =============================================================================
 # Configuration Files
 # =============================================================================
-SYSTEM_CONFIG_FILE="/etc/motu-m4/jack-setting.conf"
+SYSTEM_CONFIG_FILE="/etc/ai-jack/jack-setting.conf"
 
 # Determine actual user and user config path
 ACTUAL_USER=""
@@ -67,9 +70,9 @@ else
 fi
 
 if [ -n "$ACTUAL_USER" ] && [ "$ACTUAL_USER" != "root" ]; then
-    USER_CONFIG_FILE="/home/$ACTUAL_USER/.config/motu-m4/jack-setting.conf"
+    USER_CONFIG_FILE="/home/$ACTUAL_USER/.config/ai-jack/jack-setting.conf"
 else
-    USER_CONFIG_FILE="$HOME/.config/motu-m4/jack-setting.conf"
+    USER_CONFIG_FILE="$HOME/.config/ai-jack/jack-setting.conf"
 fi
 
 # =============================================================================
@@ -104,13 +107,14 @@ read_config_value() {
     return 1
 }
 
-# Check if config file uses new v2.0 format
+# Check if config file uses new v2.0+ format
 is_v2_config() {
     local config_file="$1"
     if [ -f "$config_file" ]; then
         if grep -q "^JACK_RATE=" "$config_file" || \
            grep -q "^JACK_PERIOD=" "$config_file" || \
-           grep -q "^JACK_NPERIODS=" "$config_file"; then
+           grep -q "^JACK_NPERIODS=" "$config_file" || \
+           grep -q "^AUDIO_DEVICE=" "$config_file"; then
             return 0
         fi
     fi
@@ -151,7 +155,7 @@ apply_legacy_preset() {
     esac
 }
 
-# Load configuration from file (supports both v1.x and v2.0 formats)
+# Load configuration from file (supports v1.x, v2.0, and v3.0 formats)
 load_config_from_file() {
     local config_file="$1"
 
@@ -159,16 +163,20 @@ load_config_from_file() {
         return 1
     fi
 
-    # Check for v2.0 format first
+    # Check for v2.0+ format first
     if is_v2_config "$config_file"; then
         local rate
         local period
         local nperiods
         local a2j_enable
+        local audio_device
+        local device_pattern
         rate=$(read_config_value "$config_file" "JACK_RATE")
         period=$(read_config_value "$config_file" "JACK_PERIOD")
         nperiods=$(read_config_value "$config_file" "JACK_NPERIODS")
         a2j_enable=$(read_config_value "$config_file" "A2J_ENABLE")
+        audio_device=$(read_config_value "$config_file" "AUDIO_DEVICE")
+        device_pattern=$(read_config_value "$config_file" "DEVICE_PATTERN")
 
         if [ -n "$rate" ]; then
             ACTIVE_RATE="$rate"
@@ -182,8 +190,14 @@ load_config_from_file() {
         if [ -n "$a2j_enable" ]; then
             ACTIVE_A2J_ENABLE="$a2j_enable"
         fi
+        if [ -n "$audio_device" ]; then
+            ACTIVE_AUDIO_DEVICE="$audio_device"
+        fi
+        if [ -n "$device_pattern" ]; then
+            ACTIVE_DEVICE_PATTERN="$device_pattern"
+        fi
 
-        log "Loaded v2.0 config from $config_file: Rate=$ACTIVE_RATE, Period=$ACTIVE_PERIOD, Nperiods=$ACTIVE_NPERIODS, A2J=$ACTIVE_A2J_ENABLE"
+        log "Loaded v3.0 config from $config_file: Device=$ACTIVE_AUDIO_DEVICE, Pattern=$ACTIVE_DEVICE_PATTERN, Rate=$ACTIVE_RATE, Period=$ACTIVE_PERIOD, Nperiods=$ACTIVE_NPERIODS, A2J=$ACTIVE_A2J_ENABLE"
         return 0
     fi
 
@@ -210,11 +224,13 @@ ACTIVE_RATE=$DEFAULT_RATE
 ACTIVE_PERIOD=$DEFAULT_PERIOD
 ACTIVE_NPERIODS=$DEFAULT_NPERIODS
 ACTIVE_A2J_ENABLE=$DEFAULT_A2J_ENABLE
+ACTIVE_AUDIO_DEVICE=$DEFAULT_AUDIO_DEVICE
+ACTIVE_DEVICE_PATTERN=$DEFAULT_DEVICE_PATTERN
 
 # Configuration priority:
-# 1. Environment variables (JACK_RATE, JACK_PERIOD, JACK_NPERIODS)
-# 2. User config file (~/.config/motu-m4/jack-setting.conf)
-# 3. System config file (/etc/motu-m4/jack-setting.conf)
+# 1. Environment variables (AUDIO_DEVICE, DEVICE_PATTERN, JACK_RATE, etc.)
+# 2. User config file (~/.config/ai-jack/jack-setting.conf)
+# 3. System config file (/etc/ai-jack/jack-setting.conf)
 # 4. Defaults
 
 config_source="defaults"
@@ -230,6 +246,14 @@ if load_config_from_file "$USER_CONFIG_FILE"; then
 fi
 
 # Environment variables have highest priority
+if [ -n "${AUDIO_DEVICE:-}" ]; then
+    ACTIVE_AUDIO_DEVICE="$AUDIO_DEVICE"
+    config_source="environment variables"
+fi
+if [ -n "${DEVICE_PATTERN:-}" ]; then
+    ACTIVE_DEVICE_PATTERN="$DEVICE_PATTERN"
+    config_source="environment variables"
+fi
 if [ -n "${JACK_RATE:-}" ]; then
     ACTIVE_RATE="$JACK_RATE"
     config_source="environment variables"
@@ -289,6 +313,8 @@ log_config_debug() {
         echo "$(date): CONFIG DEBUG - USER_CONFIG_FILE: $USER_CONFIG_FILE"
         echo "$(date): CONFIG DEBUG - SYSTEM_CONFIG_FILE: $SYSTEM_CONFIG_FILE"
         echo "$(date): CONFIG DEBUG - Config source: $config_source"
+        echo "$(date): CONFIG DEBUG - Audio Device: $ACTIVE_AUDIO_DEVICE"
+        echo "$(date): CONFIG DEBUG - Device Pattern: ${ACTIVE_DEVICE_PATTERN:-<none>}"
         echo "$(date): CONFIG DEBUG - Final config: Rate=$ACTIVE_RATE, Period=$ACTIVE_PERIOD, Nperiods=$ACTIVE_NPERIODS, A2J=$ACTIVE_A2J_ENABLE"
         echo "$(date): CONFIG DEBUG - Calculated latency: ${LATENCY_MS}ms"
     } >> $LOG
@@ -301,9 +327,14 @@ log_config_debug
 # Hardware Check
 # =============================================================================
 
-# Check if M4 interface is available
-if ! aplay -l | grep -q "M4"; then
-    fail "MOTU M4 Audio Interface not found. Please connect or power on the device."
+# Check if audio interface is available (only if DEVICE_PATTERN is set)
+if [ -n "$ACTIVE_DEVICE_PATTERN" ]; then
+    if ! aplay -l | grep -q "$ACTIVE_DEVICE_PATTERN"; then
+        fail "Audio interface '$ACTIVE_DEVICE_PATTERN' not found. Please connect or power on the device."
+    fi
+    log "Hardware check passed: Found device matching pattern '$ACTIVE_DEVICE_PATTERN'"
+else
+    log "Hardware check skipped: No DEVICE_PATTERN configured (using AUDIO_DEVICE=$ACTIVE_AUDIO_DEVICE directly)"
 fi
 
 # =============================================================================
@@ -322,10 +353,11 @@ fi
 
 # Configure JACK parameters
 echo "Configuring JACK with $ACTIVE_DESC..."
-log "Configuring JACK: Rate=$ACTIVE_RATE, Periods=$ACTIVE_NPERIODS, Period=$ACTIVE_PERIOD"
+echo "Using audio device: $ACTIVE_AUDIO_DEVICE"
+log "Configuring JACK: Device=$ACTIVE_AUDIO_DEVICE, Rate=$ACTIVE_RATE, Periods=$ACTIVE_NPERIODS, Period=$ACTIVE_PERIOD"
 
 jack_control ds alsa
-jack_control dps device hw:M4,0
+jack_control dps device "$ACTIVE_AUDIO_DEVICE"
 jack_control dps rate "$ACTIVE_RATE"
 jack_control dps nperiods "$ACTIVE_NPERIODS"
 jack_control dps period "$ACTIVE_PERIOD"
@@ -438,6 +470,7 @@ fi
 # =============================================================================
 echo ""
 echo "=== JACK Audio System Started Successfully ==="
+echo "Audio Device: $ACTIVE_AUDIO_DEVICE"
 echo "Configuration: $ACTIVE_DESC"
 echo "  Sample Rate: $ACTIVE_RATE Hz"
 echo "  Buffer Size: $ACTIVE_PERIOD frames"
@@ -446,4 +479,4 @@ echo "  Latency: ~${LATENCY_MS} ms"
 echo "  A2J MIDI Bridge: $ACTIVE_A2J_ENABLE"
 echo "=============================================="
 
-log "JACK Audio System started successfully: $ACTIVE_DESC (A2J: $ACTIVE_A2J_ENABLE)"
+log "JACK Audio System started successfully: Device=$ACTIVE_AUDIO_DEVICE, $ACTIVE_DESC (A2J: $ACTIVE_A2J_ENABLE)"

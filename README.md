@@ -1,55 +1,115 @@
-# MOTU M4 JACK Automation System for Ubuntu Studio
+# Audio Interface JACK Starter (ai-jack-starter)
 
-Automatic JACK audio server management for the MOTU M4 USB audio interface. Starts and stops JACK based on hardware detection and user login status.
+Automatic JACK audio server management for USB audio interfaces. Starts and stops JACK based on hardware detection and user login status. Works with any JACK-compatible audio interface.
 
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Ubuntu Studio](https://img.shields.io/badge/Ubuntu%20Studio-24.04+-orange.svg)
-![Version](https://img.shields.io/badge/version-2.1.3-green.svg)
+![Version](https://img.shields.io/badge/version-3.0.0-green.svg)
 
 ## Features
 
-- **Automatic JACK start/stop** when MOTU M4 is connected/disconnected
-- **Hot-plug support** - connect M4 anytime, JACK starts automatically
-- **Boot detection** - JACK starts after login if M4 is already connected
+- **Automatic JACK start/stop** when audio interface is connected/disconnected
+- **Hot-plug support** - connect your interface anytime, JACK starts automatically
+- **Boot detection** - JACK starts after login if interface is already connected
+- **Device auto-detection** - GUI detects all connected audio devices
 - **Flexible JACK configuration** - customize sample rate, buffer size, and periods
 - **Optional A2J MIDI bridge** - control ALSA-to-JACK MIDI bridge (disabled by default for modern DAWs)
 - **GTK3 GUI** for easy configuration with live latency calculation
 - **Quick presets** - Low, Medium, and Ultra-Low latency with one click
 - **Passwordless operation** via polkit for audio group members
 
+## Supported Audio Interfaces
+
+Works with any JACK-compatible USB audio interface, including:
+
+| Interface | AUDIO_DEVICE | DEVICE_PATTERN |
+|-----------|--------------|----------------|
+| MOTU M4 | `hw:M4,0` | `M4` |
+| Focusrite Scarlett 2i2 | `hw:USB,0` | `Scarlett` |
+| RME Babyface Pro | `hw:Babyface,0` | `Babyface` |
+| Native Instruments | `hw:Audio,0` | `Komplete` |
+| Generic USB Audio | `hw:0,0` | *(leave empty)* |
+
 ## Quick Start
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/giang17/motu-m4-jack-starter.git
-cd motu-m4-jack-starter
+git clone https://github.com/giang17/ai-jack-starter.git
+cd ai-jack-starter
 
 # 2. Run the installer (installs everything)
 sudo ./install.sh
 
-# 3. Configure JACK (optional - default is 48kHz, 256 frames, 3 periods)
-sudo motu-m4-jack-setting-system.sh --rate=48000 --period=256 --nperiods=3 --restart
+# 3. Configure your device (installer prompts for this)
+#    Or configure manually:
+sudo ai-jack-setting-system.sh --device=hw:M4,0 --pattern=M4 --restart
 ```
 
-The installer automatically sets up all scripts, UDEV rules, GUI, polkit rules, and systemd services.
+The installer automatically:
+- Detects connected audio devices
+- Prompts for device configuration
+- Installs all scripts, UDEV rules, GUI, polkit rules, and systemd services
 
 For manual installation, see [INSTALL.md](INSTALL.md).
 
+## Device Configuration
+
+### Finding Your Device
+
+```bash
+# List all audio devices
+aplay -l
+```
+
+Example output:
+```
+card 0: PCH [HDA Intel PCH], device 0: ALC892 Analog [ALC892 Analog]
+card 2: M4 [M4], device 0: USB Audio [USB Audio]
+```
+
+From this output:
+- `AUDIO_DEVICE=hw:M4,0` (card name "M4", device 0)
+- `DEVICE_PATTERN=M4` (unique identifier for detection)
+
+### Configuration File
+
+Edit `/etc/ai-jack/jack-setting.conf`:
+
+```bash
+# Device Settings
+AUDIO_DEVICE=hw:M4,0
+DEVICE_PATTERN=M4
+
+# JACK Settings
+JACK_RATE=48000
+JACK_PERIOD=256
+JACK_NPERIODS=2
+
+# Optional
+A2J_ENABLE=false
+DBUS_TIMEOUT=30
+```
+
+See [jack-setting.conf.example](system/jack-setting.conf.example) for detailed documentation.
+
 ## JACK Configuration
 
-### Flexible Configuration (v2.0)
+### Flexible Configuration (v3.0)
 
 Configure any combination of sample rate, buffer size, and periods:
 
 ```bash
 # Custom configuration
-sudo motu-m4-jack-setting-system.sh --rate=96000 --period=128 --nperiods=2 --restart
+sudo ai-jack-setting-system.sh --rate=96000 --period=128 --nperiods=2 --restart
+
+# Change device
+sudo ai-jack-setting-system.sh --device=hw:Scarlett,0 --pattern=Scarlett --restart
 
 # Show current configuration
-sudo motu-m4-jack-setting-system.sh current
+sudo ai-jack-setting-system.sh current
 
 # Show all options
-sudo motu-m4-jack-setting-system.sh help
+sudo ai-jack-setting-system.sh help
 ```
 
 ### Valid Values
@@ -72,7 +132,7 @@ For convenience, presets are still available:
 
 ```bash
 # Use preset (legacy syntax still works)
-sudo motu-m4-jack-setting-system.sh 2 --restart
+sudo ai-jack-setting-system.sh 2 --restart
 ```
 
 ### Latency Calculation
@@ -85,8 +145,6 @@ Latency (ms) = (Buffer Size × Periods) / Sample Rate × 1000
 
 The GUI includes a toggle for the ALSA-to-JACK MIDI bridge (`a2jmidid`):
 
-☑ **Enable ALSA-to-JACK MIDI Bridge (a2jmidid)**
-
 **Default: disabled** - Recommended for modern DAWs like Bitwig Studio and Reaper, which access ALSA MIDI directly and may show "device busy" errors when a2jmidid is running.
 
 **Enable it if you:**
@@ -95,30 +153,25 @@ The GUI includes a toggle for the ALSA-to-JACK MIDI bridge (`a2jmidid`):
 - Use older software that expects JACK MIDI ports
 
 **How to use:**
-1. Open the GUI (`motu-m4-jack-gui.py`)
+1. Open the GUI (`ai-jack-gui.py`)
 2. Check/uncheck "Enable ALSA-to-JACK MIDI Bridge"
 3. Click "Apply"
 
-The status indicator shows whether a2jmidid is currently **(running)** or **(stopped)**.
-
 When enabled, the bridge uses `--export-hw` flag to keep hardware ports available for both JACK and ALSA applications.
-
-See [INSTALL.md](INSTALL.md#alsa-to-jack-midi-bridge-a2j) for more details.
 
 ## GUI
 
 Start the GUI via terminal or application menu:
 
 ```bash
-motu-m4-jack-gui.py
+ai-jack-gui.py
 ```
 
-Or find it in: **Audio/Video → MOTU M4 JACK Settings**
-
-<img src="gui.png" alt="MOTU M4 JACK Settings GUI" width="432">
+Or find it in: **Audio/Video → Audio Interface JACK Settings**
 
 ### GUI Features
 
+- **Device dropdown** - Select from detected audio interfaces
 - **Sample Rate dropdown** - Select from 22050 Hz to 192000 Hz
 - **Buffer Size dropdown** - Select from 16 to 4096 frames
 - **Periods spinner** - Adjust from 2 to 8 periods
@@ -137,16 +190,25 @@ See [INSTALL.md](INSTALL.md) for:
 
 ## Requirements
 
-- Ubuntu Studio 24.04+
-- MOTU M4 USB Audio Interface
-- Pipewire with JACK compatibility
+- Ubuntu Studio 24.04+ (or any Linux with JACK support)
+- USB Audio Interface (any JACK-compatible device)
+- JACK2 with DBus support (or Pipewire with JACK compatibility)
 - Python 3 + GTK3 (for GUI)
+
+## Migration from motu-m4-jack-starter
+
+If you have an existing motu-m4-jack-starter installation, the installer will:
+1. Detect old installation files
+2. Offer to remove them
+3. Optionally migrate your configuration
+
+Your JACK settings will be preserved during migration.
 
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
-For release notes with download links, see [GitHub Releases](https://github.com/giang17/motu-m4-jack-starter/releases).
+For release notes with download links, see [GitHub Releases](https://github.com/giang17/ai-jack-starter/releases).
 
 ## License
 
@@ -154,4 +216,4 @@ GPL-3.0-or-later - See [LICENSE](LICENSE)
 
 ---
 
-**Status**: Production Ready ✅
+**Status**: Production Ready

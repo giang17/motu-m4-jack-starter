@@ -1,16 +1,80 @@
 # =============================================================================
-# MOTU M4 JACK Configuration File (v2.0)
+# Audio Interface JACK Starter - Configuration File (v3.0)
 # =============================================================================
-# This file controls JACK audio server settings for the MOTU M4 interface.
+# This file controls JACK audio server settings for your audio interface.
+# Works with any JACK-compatible USB audio interface.
 #
 # Location options:
-#   System-wide: /etc/motu-m4/jack-setting.conf
-#   User-specific: ~/.config/motu-m4/jack-setting.conf
+#   System-wide: /etc/ai-jack/jack-setting.conf
+#   User-specific: ~/.config/ai-jack/jack-setting.conf
 #
 # Priority: User config overrides system config
 #
-# Copyright (C) 2026
+# Copyright (C) 2025
 # License: GPL-3.0-or-later
+# =============================================================================
+
+# =============================================================================
+# DEVICE SETTINGS
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# ALSA Audio Device ID
+# -----------------------------------------------------------------------------
+# The ALSA device identifier used by JACK. Format: hw:CARD,DEVICE
+#
+# To find your device:
+#   aplay -l    (lists all sound cards)
+#   aplay -L    (lists all PCM devices)
+#
+# Common formats:
+#   hw:0,0        - First sound card, first device (generic)
+#   hw:M4,0       - MOTU M4
+#   hw:USB,0      - Generic USB audio (often Focusrite)
+#   hw:Babyface,0 - RME Babyface
+#   hw:Scarlett,0 - Focusrite Scarlett (if named)
+#
+# Example configurations for popular interfaces:
+#
+#   MOTU M4:
+#     AUDIO_DEVICE=hw:M4,0
+#
+#   Focusrite Scarlett 2i2:
+#     AUDIO_DEVICE=hw:USB,0
+#
+#   RME Babyface Pro:
+#     AUDIO_DEVICE=hw:Babyface,0
+#
+#   Native Instruments Komplete Audio:
+#     AUDIO_DEVICE=hw:Audio,0
+#
+AUDIO_DEVICE=hw:0,0
+
+# -----------------------------------------------------------------------------
+# Device Detection Pattern
+# -----------------------------------------------------------------------------
+# Pattern to search for in `aplay -l` output to verify hardware presence.
+# Used for automatic JACK start/stop when devices are connected/disconnected.
+#
+# Leave empty to disable hardware checking (JACK starts on any audio event).
+# Set to a unique string from your device's aplay -l output.
+#
+# How to find your pattern:
+#   Run: aplay -l
+#   Look for a unique identifier, e.g.:
+#     "card 2: M4 [M4], device 0: USB Audio [USB Audio]"
+#     -> Pattern: "M4"
+#
+# Examples:
+#   MOTU M4:           DEVICE_PATTERN=M4
+#   Focusrite Scarlett: DEVICE_PATTERN=Scarlett
+#   RME Babyface:      DEVICE_PATTERN=Babyface
+#   Any USB device:    DEVICE_PATTERN=     (empty - no check)
+#
+DEVICE_PATTERN=
+
+# =============================================================================
+# JACK AUDIO SETTINGS
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -39,12 +103,16 @@ JACK_PERIOD=256
 # Number of Periods
 # -----------------------------------------------------------------------------
 # More periods = more buffering = higher total latency
-# USB audio typically works best with 3 periods
+# USB audio typically works best with 2-3 periods
 #
 # Common values: 2, 3, 4
 # Recommended: 2 for low latency, 3 for USB audio stability
 #
 JACK_NPERIODS=2
+
+# =============================================================================
+# MIDI SETTINGS
+# =============================================================================
 
 # -----------------------------------------------------------------------------
 # ALSA-to-JACK MIDI Bridge (a2jmidid)
@@ -67,6 +135,10 @@ JACK_NPERIODS=2
 #
 A2J_ENABLE=false
 
+# =============================================================================
+# ADVANCED SETTINGS
+# =============================================================================
+
 # -----------------------------------------------------------------------------
 # DBus Session Bus Timeout (seconds)
 # -----------------------------------------------------------------------------
@@ -87,28 +159,48 @@ A2J_ENABLE=false
 #
 DBUS_TIMEOUT=30
 
-# -----------------------------------------------------------------------------
-# Latency Calculation
-# -----------------------------------------------------------------------------
+# =============================================================================
+# LATENCY REFERENCE
+# =============================================================================
 # Buffer Latency = JACK_PERIOD / JACK_RATE * 1000 ms
 # Round-Trip Latency = (JACK_PERIOD * JACK_NPERIODS) / JACK_RATE * 1000 ms
 #
-# Examples:
-#   48000 Hz, 256 frames, 2 periods = 5.3ms buffer, 10.7ms round-trip
-#   48000 Hz, 128 frames, 2 periods = 2.7ms buffer, 5.3ms round-trip
-#   48000 Hz, 64 frames, 2 periods = 1.3ms buffer, 2.7ms round-trip
-# -----------------------------------------------------------------------------
+# Examples at 48000 Hz:
+#   256 frames, 2 periods = 5.3ms buffer, 10.7ms round-trip
+#   128 frames, 2 periods = 2.7ms buffer, 5.3ms round-trip
+#   64 frames, 2 periods = 1.3ms buffer, 2.7ms round-trip
+# =============================================================================
 
 # =============================================================================
-# Legacy Format (v1.x - still supported for backward compatibility)
+# QUICK START EXAMPLES
 # =============================================================================
-# If you prefer the old preset system, uncomment this instead:
-# JACK_SETTING=2
 #
-# Preset mappings:
-#   1 = Low Latency (48kHz, 128 frames, 2 periods)
-#   2 = Medium Latency (48kHz, 256 frames, 2 periods)
-#   3 = Ultra-Low Latency (48kHz, 64 frames, 2 periods)
+# MOTU M4 (recommended settings):
+#   AUDIO_DEVICE=hw:M4,0
+#   DEVICE_PATTERN=M4
+#   JACK_RATE=48000
+#   JACK_PERIOD=256
+#   JACK_NPERIODS=2
 #
-# Note: If JACK_RATE/JACK_PERIOD/JACK_NPERIODS are set, they override JACK_SETTING
+# Focusrite Scarlett 2i2 (Gen 3):
+#   AUDIO_DEVICE=hw:USB,0
+#   DEVICE_PATTERN=Scarlett
+#   JACK_RATE=48000
+#   JACK_PERIOD=256
+#   JACK_NPERIODS=3
+#
+# RME Babyface Pro:
+#   AUDIO_DEVICE=hw:Babyface,0
+#   DEVICE_PATTERN=Babyface
+#   JACK_RATE=48000
+#   JACK_PERIOD=128
+#   JACK_NPERIODS=2
+#
+# Generic USB Audio (no auto-detection):
+#   AUDIO_DEVICE=hw:0,0
+#   DEVICE_PATTERN=
+#   JACK_RATE=48000
+#   JACK_PERIOD=512
+#   JACK_NPERIODS=3
+#
 # =============================================================================

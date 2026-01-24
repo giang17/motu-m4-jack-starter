@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-MOTU M4 JACK Settings GUI - v2.0
+Audio Interface JACK Settings GUI - v3.0
 A GTK3 GUI for flexible JACK audio configuration
-for the MOTU M4 audio interface.
+for any JACK-compatible audio interface.
 
 Features:
+- Device selection dropdown (auto-detection via aplay -l)
 - Flexible sample rate selection (22050 - 192000 Hz)
 - Flexible buffer size selection (16 - 4096 frames)
 - Adjustable periods (2-8)
@@ -23,13 +24,14 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 import logging
 import os
+import re
 import subprocess
 import threading
 
 from gi.repository import Gdk, GLib, Gtk
 
 # Configure logging for DBus operations and error tracking
-LOG_DIR = os.path.expanduser("~/.local/share/motu-m4")
+LOG_DIR = os.path.expanduser("~/.local/share/ai-jack")
 LOG_FILE = os.path.join(LOG_DIR, "gui.log")
 
 # Ensure log directory exists
@@ -46,13 +48,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class MotuM4JackGUI(Gtk.Window):
-    """Main window for MOTU M4 JACK Settings GUI"""
+class AudioInterfaceJackGUI(Gtk.Window):
+    """Main window for Audio Interface JACK Settings GUI"""
 
     # Paths
-    SYSTEM_CONFIG_FILE = "/etc/motu-m4/jack-setting.conf"
-    USER_CONFIG_FILE = os.path.expanduser("~/.config/motu-m4/jack-setting.conf")
-    SETTING_SCRIPT = "/usr/local/bin/motu-m4-jack-setting-system.sh"
+    SYSTEM_CONFIG_FILE = "/etc/ai-jack/jack-setting.conf"
+    USER_CONFIG_FILE = os.path.expanduser("~/.config/ai-jack/jack-setting.conf")
+    SETTING_SCRIPT = "/usr/local/bin/ai-jack-setting-system.sh"
 
     # Valid values
     SAMPLE_RATES = [22050, 44100, 48000, 88200, 96000, 176400, 192000]
@@ -60,7 +62,7 @@ class MotuM4JackGUI(Gtk.Window):
     MIN_PERIODS = 2
     MAX_PERIODS = 8
 
-    # Presets (for quick selection) - ordered by latency: Ultra → Low → Medium
+    # Presets (for quick selection) - ordered by latency: Ultra -> Low -> Medium
     PRESETS = {
         "ultra": {"name": "Ultra-Low", "rate": 48000, "period": 64, "nperiods": 2},
         "low": {"name": "Low Latency", "rate": 48000, "period": 128, "nperiods": 2},
@@ -80,12 +82,12 @@ class MotuM4JackGUI(Gtk.Window):
     }
 
     # Icon path
-    ICON_PATH = "/usr/share/icons/hicolor/scalable/apps/motu-m4-jack-settings.svg"
+    ICON_PATH = "/usr/share/icons/hicolor/scalable/apps/ai-jack-settings.svg"
 
     def __init__(self):
-        super().__init__(title="MOTU M4 JACK Settings")
+        super().__init__(title="Audio Interface JACK Settings")
         self.set_border_width(15)
-        self.set_default_size(420, 520)
+        self.set_default_size(450, 600)
         self.set_resizable(False)
 
         # Timer ID for automatic status refresh
@@ -93,6 +95,9 @@ class MotuM4JackGUI(Gtk.Window):
 
         # Flag to prevent recursive updates
         self.updating_ui = False
+
+        # Detected audio devices
+        self.detected_devices = []
 
         # Get theme colors
         self._init_theme_colors()
@@ -109,7 +114,7 @@ class MotuM4JackGUI(Gtk.Window):
 
         # Title
         title_label = Gtk.Label()
-        title_label.set_markup("<b><big>MOTU M4 JACK Settings</big></b>")
+        title_label.set_markup("<b><big>Audio Interface JACK Settings</big></b>")
         main_box.pack_start(title_label, False, False, 5)
 
         # Status frame
@@ -131,6 +136,50 @@ class MotuM4JackGUI(Gtk.Window):
         self.current_config_label = Gtk.Label()
         self.current_config_label.set_halign(Gtk.Align.START)
         status_box.pack_start(self.current_config_label, False, False, 0)
+
+        # Device Selection frame
+        device_frame = Gtk.Frame(label=" Audio Device ")
+        device_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        device_box.set_border_width(10)
+        device_frame.add(device_box)
+        main_box.pack_start(device_frame, False, False, 0)
+
+        # Device dropdown
+        device_grid = Gtk.Grid()
+        device_grid.set_column_spacing(15)
+        device_grid.set_row_spacing(8)
+        device_box.pack_start(device_grid, False, False, 0)
+
+        device_label = Gtk.Label(label="Device:")
+        device_label.set_halign(Gtk.Align.END)
+        device_grid.attach(device_label, 0, 0, 1, 1)
+
+        device_hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        self.device_combo = Gtk.ComboBoxText()
+        self.device_combo.set_hexpand(True)
+        self.device_combo.connect("changed", self.on_device_changed)
+        device_hbox.pack_start(self.device_combo, True, True, 0)
+
+        # Refresh devices button
+        refresh_devices_btn = Gtk.Button(label="Refresh")
+        refresh_devices_btn.set_tooltip_text("Scan for audio devices")
+        refresh_devices_btn.connect("clicked", self.on_refresh_devices_clicked)
+        device_hbox.pack_start(refresh_devices_btn, False, False, 0)
+        device_grid.attach(device_hbox, 1, 0, 1, 1)
+
+        # Device pattern (optional)
+        pattern_label = Gtk.Label(label="Detection Pattern:")
+        pattern_label.set_halign(Gtk.Align.END)
+        device_grid.attach(pattern_label, 0, 1, 1, 1)
+
+        self.pattern_entry = Gtk.Entry()
+        self.pattern_entry.set_placeholder_text("e.g., M4, Scarlett, Babyface (optional)")
+        self.pattern_entry.set_tooltip_text(
+            "Pattern to detect device presence (used for auto-start).\n"
+            "Leave empty to disable hardware detection."
+        )
+        self.pattern_entry.set_hexpand(True)
+        device_grid.attach(self.pattern_entry, 1, 1, 1, 1)
 
         # Configuration frame
         config_frame = Gtk.Frame(label=" JACK Configuration ")
@@ -216,7 +265,7 @@ class MotuM4JackGUI(Gtk.Window):
         # Latency warning
         self.latency_warning = Gtk.Label()
         self.latency_warning.set_markup(
-            f"<span foreground='{self.color_warning}' size='small'>⚠ Very low latency may cause audio glitches</span>"
+            f"<span foreground='{self.color_warning}' size='small'>Warning: Very low latency may cause audio glitches</span>"
         )
         self.latency_warning.set_no_show_all(True)
         config_box.pack_start(self.latency_warning, False, False, 0)
@@ -304,6 +353,9 @@ class MotuM4JackGUI(Gtk.Window):
         self.statusbar = Gtk.Label()
         self.statusbar.set_halign(Gtk.Align.START)
         main_box.pack_start(self.statusbar, False, False, 0)
+
+        # Detect audio devices
+        self.refresh_audio_devices()
 
         # Load initial status and configuration
         self.refresh_status()
@@ -395,6 +447,86 @@ class MotuM4JackGUI(Gtk.Window):
         """Timer callback for automatic status refresh"""
         self.update_status_display()
         return True
+
+    def refresh_audio_devices(self):
+        """Detect and populate audio devices from aplay -l"""
+        self.detected_devices = []
+        self.device_combo.remove_all()
+
+        try:
+            result = subprocess.run(
+                ["aplay", "-l"], capture_output=True, text=True, timeout=5
+            )
+
+            # Parse aplay output
+            # Example: "card 0: M4 [MOTU M4], device 0: USB Audio [USB Audio]"
+            pattern = r"card (\d+): (\w+) \[([^\]]+)\], device (\d+):"
+
+            for line in result.stdout.splitlines():
+                match = re.search(pattern, line)
+                if match:
+                    card_num = match.group(1)
+                    card_id = match.group(2)
+                    card_name = match.group(3)
+                    device_num = match.group(4)
+
+                    device_id = f"hw:{card_id},{device_num}"
+                    display_name = f"{card_name} ({device_id})"
+
+                    self.detected_devices.append({
+                        "id": device_id,
+                        "name": card_name,
+                        "card_id": card_id,
+                        "display": display_name
+                    })
+                    self.device_combo.append_text(display_name)
+
+            # Add manual entry option
+            self.device_combo.append_text("Custom (enter manually)...")
+
+            # Select first device or load from config
+            if self.detected_devices:
+                self.device_combo.set_active(0)
+            else:
+                self.device_combo.set_active(len(self.detected_devices))  # Custom
+
+            logger.info("Detected %d audio devices", len(self.detected_devices))
+
+        except subprocess.TimeoutExpired:
+            logger.error("aplay -l timed out")
+        except FileNotFoundError:
+            logger.error("aplay command not found")
+        except Exception as e:
+            logger.exception("Error detecting audio devices: %s", type(e).__name__)
+
+    def on_refresh_devices_clicked(self, button):
+        """Handler for refresh devices button"""
+        self.refresh_audio_devices()
+        self.set_status("Audio devices refreshed")
+
+    def on_device_changed(self, combo):
+        """Handler for device selection change"""
+        if self.updating_ui:
+            return
+
+        idx = combo.get_active()
+        if idx >= 0 and idx < len(self.detected_devices):
+            device = self.detected_devices[idx]
+            # Auto-fill pattern with card_id
+            if not self.pattern_entry.get_text():
+                self.pattern_entry.set_text(device["card_id"])
+
+    def get_selected_device(self):
+        """Returns the selected ALSA device identifier"""
+        idx = self.device_combo.get_active()
+        if idx >= 0 and idx < len(self.detected_devices):
+            return self.detected_devices[idx]["id"]
+        # Fallback to default
+        return "hw:0,0"
+
+    def get_device_pattern(self):
+        """Returns the device pattern for hardware detection"""
+        return self.pattern_entry.get_text().strip()
 
     def get_selected_rate(self):
         """Returns the selected sample rate"""
@@ -491,23 +623,28 @@ class MotuM4JackGUI(Gtk.Window):
         jack_running = self.check_jack_status()
         if jack_running:
             self.jack_status_label.set_markup(
-                f"JACK Server: <span foreground='{self.color_success}'><b>● Running</b></span>"
+                f"JACK Server: <span foreground='{self.color_success}'><b>Running</b></span>"
             )
         else:
             self.jack_status_label.set_markup(
-                f"JACK Server: <span foreground='{self.color_error}'><b>○ Stopped</b></span>"
+                f"JACK Server: <span foreground='{self.color_error}'><b>Stopped</b></span>"
             )
 
         # Hardware Status
-        hardware_found = self.check_hardware()
+        config = self.read_current_config()
+        pattern = config.get("device_pattern", "")
+        device = config.get("audio_device", "hw:0,0")
+
+        hardware_found = self.check_hardware(pattern)
         if hardware_found:
             self.hardware_status_label.set_markup(
-                f"MOTU M4: <span foreground='{self.color_success}'><b>● Connected</b></span>"
+                f"Audio Device: <span foreground='{self.color_success}'><b>Connected</b></span> ({device})"
             )
         else:
-            self.hardware_status_label.set_markup(
-                f"MOTU M4: <span foreground='{self.color_error}'><b>○ Not found</b></span>"
-            )
+            label = f"Audio Device: <span foreground='{self.color_error}'><b>Not found</b></span>"
+            if pattern:
+                label += f" (pattern: {pattern})"
+            self.hardware_status_label.set_markup(label)
 
         # A2J Status indicator
         a2j_running = self.check_a2j_status()
@@ -521,7 +658,6 @@ class MotuM4JackGUI(Gtk.Window):
             )
 
         # Current config display
-        config = self.read_current_config()
         rate = config.get("rate", 48000)
         period = config.get("period", 256)
         nperiods = config.get("nperiods", 3)
@@ -538,7 +674,14 @@ class MotuM4JackGUI(Gtk.Window):
 
     def read_current_config(self):
         """Reads the current configuration from config files"""
-        config = {"rate": 48000, "period": 256, "nperiods": 3, "a2j_enable": False}
+        config = {
+            "audio_device": "hw:0,0",
+            "device_pattern": "",
+            "rate": 48000,
+            "period": 256,
+            "nperiods": 3,
+            "a2j_enable": False
+        }
 
         # Try user config first, then system config
         for config_file in [self.USER_CONFIG_FILE, self.SYSTEM_CONFIG_FILE]:
@@ -548,10 +691,14 @@ class MotuM4JackGUI(Gtk.Window):
                         content = f.read()
                         logger.info("Reading configuration from: %s", config_file)
 
-                        # Check for v2.0 format
+                        # Parse config file
                         for line in content.splitlines():
                             try:
-                                if line.startswith("JACK_RATE="):
+                                if line.startswith("AUDIO_DEVICE="):
+                                    config["audio_device"] = line.split("=")[1].strip()
+                                elif line.startswith("DEVICE_PATTERN="):
+                                    config["device_pattern"] = line.split("=")[1].strip()
+                                elif line.startswith("JACK_RATE="):
                                     config["rate"] = int(line.split("=")[1].strip())
                                 elif line.startswith("JACK_PERIOD="):
                                     config["period"] = int(line.split("=")[1].strip())
@@ -593,6 +740,20 @@ class MotuM4JackGUI(Gtk.Window):
         config = self.read_current_config()
 
         self.updating_ui = True
+
+        # Set device
+        device_id = config["audio_device"]
+        device_found = False
+        for i, dev in enumerate(self.detected_devices):
+            if dev["id"] == device_id:
+                self.device_combo.set_active(i)
+                device_found = True
+                break
+        if not device_found and self.detected_devices:
+            self.device_combo.set_active(0)
+
+        # Set pattern
+        self.pattern_entry.set_text(config["device_pattern"])
 
         # Set rate
         if config["rate"] in self.SAMPLE_RATES:
@@ -663,13 +824,16 @@ class MotuM4JackGUI(Gtk.Window):
             logger.exception("Unexpected error checking JACK status: %s", type(e).__name__)
             return False
 
-    def check_hardware(self):
-        """Checks if MOTU M4 is connected"""
+    def check_hardware(self, pattern=""):
+        """Checks if audio interface is connected"""
         try:
             result = subprocess.run(
                 ["aplay", "-l"], capture_output=True, text=True, timeout=5
             )
-            return "M4" in result.stdout
+            if pattern:
+                return pattern in result.stdout
+            # If no pattern, check if any sound card exists
+            return "card" in result.stdout.lower()
         except subprocess.TimeoutExpired:
             logger.error("aplay -l timed out after 5 seconds")
             return False
@@ -700,6 +864,8 @@ class MotuM4JackGUI(Gtk.Window):
 
     def on_apply_clicked(self, button):
         """Handler for apply button"""
+        device = self.get_selected_device()
+        pattern = self.get_device_pattern()
         rate = self.get_selected_rate()
         period = self.get_selected_buffer()
         nperiods = self.get_selected_periods()
@@ -712,24 +878,26 @@ class MotuM4JackGUI(Gtk.Window):
         self.apply_button.set_sensitive(False)
         self.spinner.show()
         self.spinner.start()
-        self.set_status(f"Applying: {rate}Hz, {period} frames, {nperiods} periods...")
+        self.set_status(f"Applying: {device}, {rate}Hz, {period} frames...")
 
         # Run in separate thread
         thread = threading.Thread(
             target=self.apply_setting,
-            args=(rate, period, nperiods, a2j_enable, restart),
+            args=(device, pattern, rate, period, nperiods, a2j_enable, restart),
         )
         thread.daemon = True
         thread.start()
 
-    def apply_setting(self, rate, period, nperiods, a2j_enable, restart):
+    def apply_setting(self, device, pattern, rate, period, nperiods, a2j_enable, restart):
         """Applies the setting (runs in separate thread)"""
         try:
-            # Build command with new v2.0 syntax
+            # Build command with v3.0 syntax
             a2j_value = "true" if a2j_enable else "false"
             cmd = [
                 "pkexec",
                 self.SETTING_SCRIPT,
+                f"--device={device}",
+                f"--pattern={pattern}",
                 f"--rate={rate}",
                 f"--period={period}",
                 f"--nperiods={nperiods}",
@@ -738,8 +906,8 @@ class MotuM4JackGUI(Gtk.Window):
             if restart:
                 cmd.append("--restart")
 
-            logger.info("Applying settings: rate=%d, period=%d, nperiods=%d, a2j=%s, restart=%s",
-                       rate, period, nperiods, a2j_value, restart)
+            logger.info("Applying settings: device=%s, pattern=%s, rate=%d, period=%d, nperiods=%d, a2j=%s, restart=%s",
+                       device, pattern, rate, period, nperiods, a2j_value, restart)
 
             # Execute script
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
@@ -785,10 +953,10 @@ class MotuM4JackGUI(Gtk.Window):
 
         if success:
             latency = self.calculate_latency()
-            self.set_status(f"✓ Settings applied successfully (~{latency}ms latency)")
+            self.set_status(f"Settings applied successfully (~{latency[1]}ms latency)")
             self.refresh_status()
         else:
-            self.set_status(f"✗ Error: {error_msg[:50]}")
+            self.set_status(f"Error: {error_msg[:50]}")
 
             # Show error dialog
             dialog = Gtk.MessageDialog(
@@ -829,7 +997,7 @@ def main():
         Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
     )
 
-    app = MotuM4JackGUI()
+    app = AudioInterfaceJackGUI()
     Gtk.main()
 
 

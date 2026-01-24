@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Audio Interface JACK Settings
+Name[de]=Audio Interface JACK Einstellungen
+Comment=Configure JACK audio settings for your audio interface
+Comment[de]=JACK Audio-Einstellungen fuer dein Audio-Interface konfigurieren
+Exec=/usr/local/bin/ai-jack-gui.py
+Icon=ai-jack-settings
+Terminal=false
+Categories=AudioVideo;Audio;Settings;
+Keywords=audio;jack;interface;latency;settings;focusrite;motu;rme;
+StartupNotify=true

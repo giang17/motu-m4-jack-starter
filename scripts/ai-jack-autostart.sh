@@ -1,20 +1,21 @@
 #!/bin/bash
 
 # =============================================================================
-# MOTU M4 JACK Autostart Script - Root Context
+# Audio Interface JACK Autostart Script - Root Context - v3.0
 # =============================================================================
-# Triggered by UDEV when M4 is connected. Detects active user and switches
-# to user context to start JACK with appropriate environment variables.
+# Triggered by UDEV when audio interface is connected. Detects active user and
+# switches to user context to start JACK with appropriate environment variables.
+# Works with any JACK-compatible audio interface.
 #
 # Copyright (C) 2025
 # License: GPL-3.0-or-later
 # =============================================================================
 
 # Log file path in dedicated /run subdirectory
-LOG="/run/motu-m4/jack-autostart.log"
+LOG="/run/ai-jack/jack-autostart.log"
 
 # Ensure log directory exists
-mkdir -p /run/motu-m4 2>/dev/null
+mkdir -p /run/ai-jack 2>/dev/null
 
 # =============================================================================
 # Logging Function
@@ -24,7 +25,7 @@ log() {
     echo "$(date): $1" >> $LOG
 }
 
-log "M4 Audio Interface detected - Starting JACK directly"
+log "Audio Interface detected - Starting JACK directly"
 
 # =============================================================================
 # User Detection
@@ -74,8 +75,8 @@ fi
 DBUS_TIMEOUT=30
 
 # Try system config first
-if [ -f "/etc/motu-m4/jack-setting.conf" ]; then
-    CONF_TIMEOUT=$(grep -E "^DBUS_TIMEOUT=" /etc/motu-m4/jack-setting.conf 2>/dev/null | cut -d= -f2)
+if [ -f "/etc/ai-jack/jack-setting.conf" ]; then
+    CONF_TIMEOUT=$(grep -E "^DBUS_TIMEOUT=" /etc/ai-jack/jack-setting.conf 2>/dev/null | cut -d= -f2)
     if [ -n "$CONF_TIMEOUT" ]; then
         DBUS_TIMEOUT="$CONF_TIMEOUT"
         log "Loaded DBUS_TIMEOUT=$DBUS_TIMEOUT from system config"
@@ -83,7 +84,7 @@ if [ -f "/etc/motu-m4/jack-setting.conf" ]; then
 fi
 
 # User config overrides system config
-USER_CONFIG="$USER_HOME/.config/motu-m4/jack-setting.conf"
+USER_CONFIG="$USER_HOME/.config/ai-jack/jack-setting.conf"
 if [ -f "$USER_CONFIG" ]; then
     CONF_TIMEOUT=$(grep -E "^DBUS_TIMEOUT=" "$USER_CONFIG" 2>/dev/null | cut -d= -f2)
     if [ -n "$CONF_TIMEOUT" ]; then
@@ -109,7 +110,7 @@ done
 
 if [ ! -e "$DBUS_SOCKET" ]; then
     log "WARNING: DBUS socket not found after $DBUS_TIMEOUT seconds. Continuing anyway."
-    log "HINT: Increase DBUS_TIMEOUT in /etc/motu-m4/jack-setting.conf if this happens frequently."
+    log "HINT: Increase DBUS_TIMEOUT in /etc/ai-jack/jack-setting.conf if this happens frequently."
 fi
 
 log "Starting JACK directly for user: $USER (ID: $USER_ID)"
@@ -125,6 +126,6 @@ export XDG_RUNTIME_DIR=/run/user/$USER_ID
 export HOME=$USER_HOME
 
 # Execute JACK initialization script as user
-runuser -l "$USER" -c "/usr/local/bin/motu-m4-jack-init.sh" >> $LOG 2>&1
+runuser -l "$USER" -c "/usr/local/bin/ai-jack-init.sh" >> $LOG 2>&1
 
 log "JACK startup command completed"

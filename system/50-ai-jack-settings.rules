@@ -1,0 +1,18 @@
+// Polkit rule for Audio Interface JACK Settings
+// Allows members of the "audio" group to run the JACK setting script without password
+//
+// Installation:
+//   sudo cp 50-ai-jack-settings.rules /etc/polkit-1/rules.d/
+//   sudo chmod 644 /etc/polkit-1/rules.d/50-ai-jack-settings.rules
+//
+// Prerequisite: User must be in the "audio" group
+//   sudo usermod -aG audio $USER
+//   (Re-login required)
+
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.policykit.exec" &&
+        action.lookup("program") == "/usr/local/bin/ai-jack-setting-system.sh" &&
+        subject.isInGroup("audio")) {
+        return polkit.Result.YES;
+    }
+});

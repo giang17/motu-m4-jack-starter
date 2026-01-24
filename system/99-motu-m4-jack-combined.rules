@@ -1,9 +1,0 @@
-# MOTU M4 Audio Interface - vereinfachte Regel
-# Vorbereitung: Verzeichnis erstellen
-SUBSYSTEM=="sound", ACTION=="add|remove", RUN+="/bin/sh -c 'mkdir -p /run/motu-m4 && chmod 777 /run/motu-m4'"
-
-# Sound-Controller hinzugefügt
-SUBSYSTEM=="sound", KERNEL=="controlC*", ACTION=="add", RUN+="/usr/local/bin/motu-m4-udev-handler.sh add %k"
-
-# Sound-Karte entfernt
-SUBSYSTEM=="sound", KERNEL=="card*", ACTION=="remove", RUN+="/usr/local/bin/motu-m4-udev-handler.sh remove %k"

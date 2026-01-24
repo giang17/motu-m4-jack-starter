@@ -1,12 +1,12 @@
 # Installation & Configuration Guide
 
-Complete installation, configuration, and troubleshooting guide for the MOTU M4 JACK Automation System.
+Complete installation, configuration, and troubleshooting guide for the Audio Interface JACK Starter (ai-jack-starter).
 
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
-- [Configuration](#configuration)
+- [Device Configuration](#device-configuration)
 - [JACK Configuration Options](#jack-configuration-options)
 - [System Components](#system-components)
 - [Troubleshooting](#troubleshooting)
@@ -18,9 +18,9 @@ Complete installation, configuration, and troubleshooting guide for the MOTU M4 
 
 ### System Requirements
 
-- **OS**: Ubuntu Studio 24.04 or later
-- **Audio Stack**: Pipewire with JACK compatibility
-- **Hardware**: MOTU M4 USB Audio Interface
+- **OS**: Ubuntu Studio 24.04 or later (or any Linux with JACK support)
+- **Audio Stack**: JACK2 with DBus support, or Pipewire with JACK compatibility
+- **Hardware**: Any JACK-compatible USB audio interface
 
 ### Required Packages
 
@@ -56,14 +56,16 @@ The easiest way to install everything is using the automated installer:
 
 ```bash
 # Clone repository
-git clone https://github.com/giang17/motu-m4-jack-starter.git
-cd motu-m4-jack-starter
+git clone https://github.com/giang17/ai-jack-starter.git
+cd ai-jack-starter
 
 # Run installer
 sudo ./install.sh
 ```
 
 The installer automatically:
+- Detects connected audio devices
+- Prompts for device configuration (AUDIO_DEVICE and DEVICE_PATTERN)
 - Checks dependencies
 - Installs all scripts to `/usr/local/bin/`
 - Installs the GUI with desktop entry and icon
@@ -71,6 +73,7 @@ The installer automatically:
 - Sets up Polkit for passwordless operation
 - Enables the systemd user service
 - Verifies audio group membership
+- Offers cleanup of old motu-m4-jack-starter installation (if present)
 
 ### Manual Installation
 
@@ -79,22 +82,22 @@ If you prefer manual installation or need more control:
 #### Step 1: Clone Repository
 
 ```bash
-git clone https://github.com/giang17/motu-m4-jack-starter.git
-cd motu-m4-jack-starter
+git clone https://github.com/giang17/ai-jack-starter.git
+cd ai-jack-starter
 ```
 
 #### Step 2: Install Scripts
 
 ```bash
 sudo cp scripts/*.sh /usr/local/bin/
-sudo chmod +x /usr/local/bin/motu-m4-*.sh
+sudo chmod +x /usr/local/bin/ai-*.sh
 sudo chmod +x /usr/local/bin/debug-config.sh /usr/local/bin/detect-display.sh
 ```
 
 #### Step 3: Install UDEV Rule
 
 ```bash
-sudo cp system/99-motu-m4-jack-combined.rules /etc/udev/rules.d/
+sudo cp system/99-ai-jack.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 ```
@@ -103,70 +106,119 @@ sudo udevadm trigger
 
 ```bash
 mkdir -p ~/.config/systemd/user/
-cp system/motu-m4-login-check.service ~/.config/systemd/user/
+cp system/ai-login-check.service ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable motu-m4-login-check.service
+systemctl --user enable ai-login-check.service
 ```
 
 #### Step 5: Install GUI (Optional)
 
 ```bash
-sudo cp gui/motu-m4-jack-gui.py /usr/local/bin/
-sudo chmod +x /usr/local/bin/motu-m4-jack-gui.py
-sudo cp system/motu-m4-jack-settings.desktop /usr/share/applications/
+sudo cp gui/ai-jack-gui.py /usr/local/bin/
+sudo chmod +x /usr/local/bin/ai-jack-gui.py
+sudo cp system/ai-jack-settings.desktop /usr/share/applications/
 sudo mkdir -p /usr/share/icons/hicolor/scalable/apps/
-sudo cp gui/motu-m4-jack-settings.svg /usr/share/icons/hicolor/scalable/apps/
+sudo cp gui/ai-jack-settings.svg /usr/share/icons/hicolor/scalable/apps/
 sudo gtk-update-icon-cache /usr/share/icons/hicolor/
 ```
 
 #### Step 6: Install Polkit Rule (Passwordless Operation)
 
 ```bash
-sudo cp system/50-motu-m4-jack-settings.rules /etc/polkit-1/rules.d/
+sudo cp system/50-ai-jack-settings.rules /etc/polkit-1/rules.d/
 ```
 
 This allows audio group members to change JACK settings without password prompts.
 
----
-
-## Configuration
-
-### Quick Start
+#### Step 7: Create Configuration
 
 ```bash
-# Apply a custom configuration
-sudo motu-m4-jack-setting-system.sh --rate=48000 --period=256 --nperiods=3 --restart
+sudo mkdir -p /etc/ai-jack
+sudo cp system/jack-setting.conf.example /etc/ai-jack/jack-setting.conf
 
-# Or use a preset
-sudo motu-m4-jack-setting-system.sh 2 --restart
+# Edit with your device settings
+sudo nano /etc/ai-jack/jack-setting.conf
+```
 
-# Check current configuration
-sudo motu-m4-jack-setting-system.sh current
+---
+
+## Device Configuration
+
+### Finding Your Audio Device
+
+```bash
+# List all audio devices
+aplay -l
+```
+
+Example output:
+```
+card 0: PCH [HDA Intel PCH], device 0: ALC892 Analog [ALC892 Analog]
+card 2: M4 [M4], device 0: USB Audio [USB Audio]
+card 3: USB [Scarlett 2i2 USB], device 0: USB Audio [USB Audio]
+```
+
+From this output:
+- MOTU M4: `AUDIO_DEVICE=hw:M4,0` and `DEVICE_PATTERN=M4`
+- Focusrite Scarlett: `AUDIO_DEVICE=hw:USB,0` and `DEVICE_PATTERN=Scarlett`
+
+### Configuration Parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `AUDIO_DEVICE` | ALSA device ID for JACK | `hw:M4,0`, `hw:USB,0`, `hw:0,0` |
+| `DEVICE_PATTERN` | String to search in `aplay -l` for hardware detection | `M4`, `Scarlett`, `Babyface` |
+
+### Example Configurations
+
+**MOTU M4:**
+```bash
+AUDIO_DEVICE=hw:M4,0
+DEVICE_PATTERN=M4
+```
+
+**Focusrite Scarlett 2i2:**
+```bash
+AUDIO_DEVICE=hw:USB,0
+DEVICE_PATTERN=Scarlett
+```
+
+**RME Babyface Pro:**
+```bash
+AUDIO_DEVICE=hw:Babyface,0
+DEVICE_PATTERN=Babyface
+```
+
+**Generic USB Audio (no auto-detection):**
+```bash
+AUDIO_DEVICE=hw:0,0
+DEVICE_PATTERN=
 ```
 
 ### Configuration Files
 
-The system uses configuration files to store JACK settings:
+The system uses configuration files to store settings:
 
-**System-wide**: `/etc/motu-m4/jack-setting.conf`
-**User-specific**: `~/.config/motu-m4/jack-setting.conf`
+**System-wide**: `/etc/ai-jack/jack-setting.conf`
+**User-specific**: `~/.config/ai-jack/jack-setting.conf`
 
-Example configuration:
+Complete configuration example:
 
 ```bash
-# Sample Rate (Hz)
+# Device Settings
+AUDIO_DEVICE=hw:M4,0
+DEVICE_PATTERN=M4
+
+# JACK Settings
 JACK_RATE=48000
-
-# Period Size (Buffer Size in frames)
 JACK_PERIOD=256
-
-# Number of Periods
 JACK_NPERIODS=2
 
-# ALSA-to-JACK MIDI Bridge (a2jmidid)
-# Values: true, false, yes, no, 1, 0
-# Default: false
+# ALSA-to-JACK MIDI Bridge
 A2J_ENABLE=false
+
+# DBus timeout (seconds)
+DBUS_TIMEOUT=30
 ```
 
 See `system/jack-setting.conf.example` for a complete documented example.
@@ -175,13 +227,14 @@ See `system/jack-setting.conf.example` for a complete documented example.
 
 ```bash
 # Start from terminal
-motu-m4-jack-gui.py
+ai-jack-gui.py
 
 # Or find in application menu:
-# Audio/Video → MOTU M4 JACK Settings
+# Audio/Video → Audio Interface JACK Settings
 ```
 
 The GUI provides:
+- Device selection dropdown (auto-detects all connected audio devices)
 - Dropdown menus for sample rate and buffer size
 - Spin button for periods
 - Live latency calculation
@@ -192,14 +245,14 @@ The GUI provides:
 
 The system uses this priority hierarchy:
 
-1. **Environment variables** `JACK_RATE`, `JACK_PERIOD`, `JACK_NPERIODS` (highest)
-2. **User config** `~/.config/motu-m4/jack-setting.conf`
-3. **System config** `/etc/motu-m4/jack-setting.conf`
-4. **Default** (48000 Hz, 256 frames, 3 periods)
+1. **Environment variables** `JACK_RATE`, `JACK_PERIOD`, `JACK_NPERIODS`, `AUDIO_DEVICE`, `DEVICE_PATTERN` (highest)
+2. **User config** `~/.config/ai-jack/jack-setting.conf`
+3. **System config** `/etc/ai-jack/jack-setting.conf`
+4. **Defaults** (hw:0,0, no pattern, 48000 Hz, 256 frames, 2 periods)
 
 > **Note**: User config overrides system config. Remove user config if unexpected behavior occurs:
 > ```bash
-> rm ~/.config/motu-m4/jack-setting.conf
+> rm ~/.config/ai-jack/jack-setting.conf
 > ```
 
 ---
@@ -233,20 +286,20 @@ The bridge is started with `--export-hw` flag, which:
 
 ```bash
 # Edit system config
-sudo nano /etc/motu-m4/jack-setting.conf
+sudo nano /etc/ai-jack/jack-setting.conf
 
 # Add or change this line:
 A2J_ENABLE=false
 
 # Or for user config:
-mkdir -p ~/.config/motu-m4
-nano ~/.config/motu-m4/jack-setting.conf
+mkdir -p ~/.config/ai-jack
+nano ~/.config/ai-jack/jack-setting.conf
 ```
 
 Then restart JACK:
 
 ```bash
-sudo motu-m4-jack-setting-system.sh current --restart
+sudo ai-jack-setting-system.sh current --restart
 ```
 
 **Manual control (for testing):**
@@ -266,31 +319,33 @@ a2j_control --status
 
 ## JACK Audio Settings
 
-### Flexible Configuration (v2.0)
+### Flexible Configuration (v3.0)
 
-Configure any combination of sample rate, buffer size, and periods:
+Configure any combination of sample rate, buffer size, periods, and device:
 
 ```bash
 # Full syntax
-sudo motu-m4-jack-setting-system.sh --rate=<Hz> --period=<frames> --nperiods=<n> [--restart]
+sudo ai-jack-setting-system.sh --device=<hw:X,Y> --pattern=<pattern> --rate=<Hz> --period=<frames> --nperiods=<n> [--restart]
 
 # Examples
-sudo motu-m4-jack-setting-system.sh --rate=96000 --period=128 --nperiods=2 --restart
-sudo motu-m4-jack-setting-system.sh --rate=44100 --period=512 --nperiods=3 --restart
-sudo motu-m4-jack-setting-system.sh --rate=192000 --period=64 --nperiods=2 --restart
+sudo ai-jack-setting-system.sh --device=hw:M4,0 --pattern=M4 --rate=48000 --period=256 --nperiods=2 --restart
+sudo ai-jack-setting-system.sh --rate=96000 --period=128 --nperiods=2 --restart
+sudo ai-jack-setting-system.sh --device=hw:Scarlett,0 --pattern=Scarlett --restart
 ```
 
 ### Valid Values
 
 | Parameter | Valid Values | Description |
 |-----------|--------------|-------------|
+| `--device` | `hw:X,Y` format | ALSA device identifier |
+| `--pattern` | any string | Hardware detection pattern |
 | `--rate` | 22050, 44100, 48000, 88200, 96000, 176400, 192000 | Sample rate in Hz |
 | `--period` | 16, 32, 64, 128, 256, 512, 1024, 2048, 4096 | Buffer size in frames |
 | `--nperiods` | 2, 3, 4, 5, 6, 7, 8 | Number of periods |
 
 ### Quick Presets
 
-For convenience, presets are still available (v1.x compatible):
+For convenience, presets are still available:
 
 | Preset | Sample Rate | Buffer | Periods | Latency | Use Case |
 |--------|-------------|--------|---------|---------|----------|
@@ -300,9 +355,9 @@ For convenience, presets are still available (v1.x compatible):
 
 ```bash
 # Use preset
-sudo motu-m4-jack-setting-system.sh 1 --restart
-sudo motu-m4-jack-setting-system.sh 2 --restart
-sudo motu-m4-jack-setting-system.sh 3 --restart
+sudo ai-jack-setting-system.sh 1 --restart
+sudo ai-jack-setting-system.sh 2 --restart
+sudo ai-jack-setting-system.sh 3 --restart
 ```
 
 ### Latency Calculation
@@ -314,9 +369,9 @@ Latency (ms) = (Buffer Size × Periods) / Sample Rate × 1000
 ```
 
 Examples:
-- 256 × 3 / 48000 × 1000 = **5.3 ms**
-- 512 × 2 / 48000 × 1000 = **10.7 ms**
-- 128 × 3 / 48000 × 1000 = **2.7 ms**
+- 256 × 2 / 48000 × 1000 = **10.7 ms**
+- 128 × 2 / 48000 × 1000 = **5.3 ms**
+- 64 × 2 / 48000 × 1000 = **2.7 ms**
 - 128 × 2 / 96000 × 1000 = **2.7 ms** (higher sample rate, same latency)
 
 ### Latency Recommendations
@@ -330,28 +385,6 @@ Examples:
 
 **Warning**: Very low latency (< 3 ms) requires an optimized system. See [Advanced Configuration](#kernel-optimizations-for-ultra-low-latency).
 
-### Configuration File Format
-
-The v2.0 configuration format (`/etc/motu-m4/jack-setting.conf`):
-
-```bash
-# MOTU M4 JACK Configuration
-# Format: v2.0
-
-JACK_RATE=48000
-JACK_PERIOD=256
-JACK_NPERIODS=3
-
-# DBus timeout (seconds) - time to wait for DBus at startup
-DBUS_TIMEOUT=30
-```
-
-Legacy v1.x format is still supported:
-
-```bash
-JACK_SETTING=1
-```
-
 ---
 
 ## System Components
@@ -360,29 +393,29 @@ JACK_SETTING=1
 
 | File | Location | Purpose |
 |------|----------|---------|
-| `motu-m4-udev-handler.sh` | `/usr/local/bin/` | UDEV event handler |
-| `motu-m4-jack-autostart.sh` | `/usr/local/bin/` | JACK autostart (root context) |
-| `motu-m4-jack-autostart-user.sh` | `/usr/local/bin/` | JACK autostart (user context) |
-| `motu-m4-jack-init.sh` | `/usr/local/bin/` | JACK initialization |
-| `motu-m4-jack-shutdown.sh` | `/usr/local/bin/` | Clean JACK shutdown |
-| `motu-m4-jack-restart-simple.sh` | `/usr/local/bin/` | JACK restart |
-| `motu-m4-jack-setting.sh` | `/usr/local/bin/` | User setting helper |
-| `motu-m4-jack-setting-system.sh` | `/usr/local/bin/` | System setting helper |
-| `motu-m4-jack-gui.py` | `/usr/local/bin/` | GTK3 GUI |
-| `99-motu-m4-jack-combined.rules` | `/etc/udev/rules.d/` | UDEV rules |
-| `motu-m4-login-check.service` | `~/.config/systemd/user/` | Login check service |
-| `50-motu-m4-jack-settings.rules` | `/etc/polkit-1/rules.d/` | Polkit rule |
+| `ai-udev-handler.sh` | `/usr/local/bin/` | UDEV event handler |
+| `ai-jack-autostart.sh` | `/usr/local/bin/` | JACK autostart (root context) |
+| `ai-jack-autostart-user.sh` | `/usr/local/bin/` | JACK autostart (user context) |
+| `ai-jack-init.sh` | `/usr/local/bin/` | JACK initialization |
+| `ai-jack-shutdown.sh` | `/usr/local/bin/` | Clean JACK shutdown |
+| `ai-jack-restart.sh` | `/usr/local/bin/` | JACK restart |
+| `ai-jack-setting.sh` | `/usr/local/bin/` | User setting helper |
+| `ai-jack-setting-system.sh` | `/usr/local/bin/` | System setting helper |
+| `ai-jack-gui.py` | `/usr/local/bin/` | GTK3 GUI |
+| `99-ai-jack.rules` | `/etc/udev/rules.d/` | UDEV rules |
+| `ai-login-check.service` | `~/.config/systemd/user/` | Login check service |
+| `50-ai-jack-settings.rules` | `/etc/polkit-1/rules.d/` | Polkit rule |
 
 ### Configuration Files
 
 | File | Purpose |
 |------|---------|
-| `/etc/motu-m4/jack-setting.conf` | System-wide JACK configuration |
-| `~/.config/motu-m4/jack-setting.conf` | User-specific JACK configuration |
+| `/etc/ai-jack/jack-setting.conf` | System-wide configuration |
+| `~/.config/ai-jack/jack-setting.conf` | User-specific configuration |
 
 ### Log Files
 
-All logs are stored in `/run/motu-m4/`:
+All logs are stored in `/run/ai-jack/`:
 
 | Log | Content |
 |-----|---------|
@@ -396,9 +429,9 @@ All logs are stored in `/run/motu-m4/`:
 
 | Scenario | Behavior |
 |----------|----------|
-| Boot with M4 connected | JACK starts after user login |
-| Connect M4 after login | JACK starts immediately |
-| Disconnect M4 | JACK stops cleanly |
+| Boot with interface connected | JACK starts after user login |
+| Connect interface after login | JACK starts immediately |
+| Disconnect interface | JACK stops cleanly |
 | Multi-monitor setup | Automatic display detection |
 
 ---
@@ -422,19 +455,19 @@ jack_lsp -c
 
 ```bash
 # All logs
-ls -la /run/motu-m4/
+ls -la /run/ai-jack/
 
 # UDEV handler
-cat /run/motu-m4/jack-uvdev-handler.log
+cat /run/ai-jack/jack-uvdev-handler.log
 
 # JACK start details
-cat /run/motu-m4/jack-autostart-user.log
+cat /run/ai-jack/jack-autostart-user.log
 
 # JACK initialization
-cat /run/motu-m4/jack-init.log
+cat /run/ai-jack/jack-init.log
 
 # Login check
-cat /run/motu-m4/jack-login-check.log
+cat /run/ai-jack/jack-login-check.log
 ```
 
 ### Debug Configuration
@@ -453,25 +486,25 @@ debug-config.sh
 
 ```bash
 # Login check service status
-systemctl --user status motu-m4-login-check.service
+systemctl --user status ai-login-check.service
 
 # Service logs
-journalctl --user -u motu-m4-login-check.service
+journalctl --user -u ai-login-check.service
 ```
 
 ### Common Problems
 
 #### JACK won't start
 
-1. Check if MOTU M4 is detected:
+1. Check if audio interface is detected:
    ```bash
-   aplay -l | grep M4
+   aplay -l | grep -i "your_pattern"
    ```
 
 2. Check JACK errors:
    ```bash
    jack_control status
-   cat /run/motu-m4/jack-init.log
+   cat /run/ai-jack/jack-init.log
    ```
 
 3. Verify user is in audio group:
@@ -479,11 +512,16 @@ journalctl --user -u motu-m4-login-check.service
    groups | grep audio
    ```
 
+4. Verify AUDIO_DEVICE is correct:
+   ```bash
+   grep AUDIO_DEVICE /etc/ai-jack/jack-setting.conf
+   ```
+
 #### XRuns (audio dropouts)
 
 1. Increase latency (use larger buffer or more periods):
    ```bash
-   sudo motu-m4-jack-setting-system.sh --rate=48000 --period=512 --nperiods=2 --restart
+   sudo ai-jack-setting-system.sh --rate=48000 --period=512 --nperiods=2 --restart
    ```
 
 2. Check CPU load and disable power management
@@ -503,7 +541,7 @@ journalctl --user -u motu-m4-login-check.service
 
 1. Ensure polkit rule is installed:
    ```bash
-   ls /etc/polkit-1/rules.d/50-motu-m4-jack-settings.rules
+   ls /etc/polkit-1/rules.d/50-ai-jack-settings.rules
    ```
 
 2. Verify audio group membership:
@@ -515,12 +553,12 @@ journalctl --user -u motu-m4-login-check.service
 
 1. Check for conflicting user config:
    ```bash
-   cat ~/.config/motu-m4/jack-setting.conf
+   cat ~/.config/ai-jack/jack-setting.conf
    ```
 
 2. Remove user config to use system config:
    ```bash
-   rm ~/.config/motu-m4/jack-setting.conf
+   rm ~/.config/ai-jack/jack-setting.conf
    ```
 
 ---
@@ -536,12 +574,12 @@ The autostart scripts wait for the DBus session bus to become available before s
 **When to increase the timeout**:
 - Slow boot times or complex login procedures
 - Logs show "DBUS socket not found after X seconds"
-- DBus-related errors in `/run/motu-m4/jack-autostart.log`
+- DBus-related errors in `/run/ai-jack/jack-autostart.log`
 
 **Configuration**:
 
 ```bash
-# In /etc/motu-m4/jack-setting.conf or ~/.config/motu-m4/jack-setting.conf
+# In /etc/ai-jack/jack-setting.conf or ~/.config/ai-jack/jack-setting.conf
 DBUS_TIMEOUT=60  # Increase to 60 seconds
 ```
 
@@ -554,7 +592,7 @@ DBUS_TIMEOUT=60  # Increase to 60 seconds
 
 ```bash
 # Check autostart logs for DBus warnings
-grep -i dbus /run/motu-m4/jack-autostart*.log
+grep -i dbus /run/ai-jack/jack-autostart*.log
 
 # Verify DBus socket exists
 ls -la /run/user/$(id -u)/bus
@@ -586,25 +624,18 @@ isolcpus=14-19 nohz_full=14-19 rcu_nocbs=14-19
 For temporary testing without changing config files:
 
 ```bash
-# v2.0 style
+# Override device and JACK settings
+export AUDIO_DEVICE=hw:M4,0
+export DEVICE_PATTERN=M4
 export JACK_RATE=96000
 export JACK_PERIOD=128
 export JACK_NPERIODS=2
-motu-m4-jack-init.sh
+ai-jack-init.sh
 
-# Or legacy style
+# Or use preset
 export JACK_SETTING=3
-motu-m4-jack-init.sh
+ai-jack-init.sh
 ```
-
-### Adapting for Other Audio Interfaces
-
-1. Modify UDEV rule device detection (`99-motu-m4-jack-combined.rules`)
-2. Change `aplay -l | grep "M4"` to match your device name
-3. Adjust JACK device parameter in `motu-m4-jack-init.sh`:
-   ```bash
-   jack_control dps device hw:YourDevice,0
-   ```
 
 ### High Sample Rate Configurations
 
@@ -612,12 +643,35 @@ For professional audio work at higher sample rates:
 
 ```bash
 # 96 kHz studio quality
-sudo motu-m4-jack-setting-system.sh --rate=96000 --period=256 --nperiods=2 --restart
+sudo ai-jack-setting-system.sh --rate=96000 --period=256 --nperiods=2 --restart
 # Latency: ~5.3 ms
 
 # 192 kHz high-resolution
-sudo motu-m4-jack-setting-system.sh --rate=192000 --period=128 --nperiods=2 --restart
+sudo ai-jack-setting-system.sh --rate=192000 --period=128 --nperiods=2 --restart
 # Latency: ~1.3 ms (requires optimized system)
+```
+
+---
+
+## Migration from motu-m4-jack-starter
+
+If you have an existing motu-m4-jack-starter installation, the new installer offers:
+
+1. **Detection**: Automatically detects old installation files
+2. **Cleanup**: Option to remove old scripts, rules, and config
+3. **Migration**: Option to copy settings from `/etc/motu-m4/` to `/etc/ai-jack/`
+
+To manually migrate:
+
+```bash
+# Copy old configuration
+sudo mkdir -p /etc/ai-jack
+sudo cp /etc/motu-m4/jack-setting.conf /etc/ai-jack/
+
+# Add device settings to the new config
+sudo nano /etc/ai-jack/jack-setting.conf
+# Add: AUDIO_DEVICE=hw:M4,0
+# Add: DEVICE_PATTERN=M4
 ```
 
 ---
@@ -626,35 +680,35 @@ sudo motu-m4-jack-setting-system.sh --rate=192000 --period=128 --nperiods=2 --re
 
 ```bash
 # Remove scripts
-sudo rm /usr/local/bin/motu-m4-*.sh
-sudo rm /usr/local/bin/motu-m4-jack-gui.py
+sudo rm /usr/local/bin/ai-*.sh
+sudo rm /usr/local/bin/ai-jack-gui.py
 sudo rm /usr/local/bin/debug-config.sh
 sudo rm /usr/local/bin/detect-display.sh
 
 # Remove UDEV rule
-sudo rm /etc/udev/rules.d/99-motu-m4-jack-combined.rules
+sudo rm /etc/udev/rules.d/99-ai-jack.rules
 sudo udevadm control --reload-rules
 
 # Remove systemd service
-systemctl --user disable motu-m4-login-check.service
-rm ~/.config/systemd/user/motu-m4-login-check.service
+systemctl --user disable ai-login-check.service
+rm ~/.config/systemd/user/ai-login-check.service
 systemctl --user daemon-reload
 
 # Remove polkit rule
-sudo rm /etc/polkit-1/rules.d/50-motu-m4-jack-settings.rules
+sudo rm /etc/polkit-1/rules.d/50-ai-jack-settings.rules
 
 # Remove desktop entry and icon
-sudo rm /usr/share/applications/motu-m4-jack-settings.desktop
-sudo rm /usr/share/icons/hicolor/scalable/apps/motu-m4-jack-settings.svg
+sudo rm /usr/share/applications/ai-jack-settings.desktop
+sudo rm /usr/share/icons/hicolor/scalable/apps/ai-jack-settings.svg
 
 # Remove configuration
-sudo rm -rf /etc/motu-m4/
-rm -rf ~/.config/motu-m4/
+sudo rm -rf /etc/ai-jack/
+rm -rf ~/.config/ai-jack/
 ```
 
 ---
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/giang17/motu-m4-jack-starter/issues)
+- **Issues**: [GitHub Issues](https://github.com/giang17/ai-jack-starter/issues)
 - **License**: GPL-3.0-or-later

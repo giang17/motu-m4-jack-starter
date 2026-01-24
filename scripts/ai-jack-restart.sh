@@ -1,17 +1,18 @@
 #!/bin/bash
 
 # =============================================================================
-# MOTU M4 JACK Server Restart Script
+# Audio Interface JACK Server Restart Script - v3.0
 # =============================================================================
 # Performs a clean restart of JACK server: shutdown + startup with new parameters.
 # This script is called when configuration changes are applied.
+# Works with any JACK-compatible audio interface.
 #
 # Copyright (C) 2025
 # License: GPL-3.0-or-later
 # =============================================================================
 
 # Log file path (consistent with other scripts)
-LOG="/run/motu-m4/jack-restart.log"
+LOG="/run/ai-jack/jack-restart.log"
 
 # =============================================================================
 # Logging Functions
@@ -35,11 +36,11 @@ fail() {
 
 # Path to scripts (adjust if needed)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SHUTDOWN_SCRIPT="$SCRIPT_DIR/motu-m4-jack-shutdown.sh"
-INIT_SCRIPT="$SCRIPT_DIR/motu-m4-jack-init.sh"
+SHUTDOWN_SCRIPT="$SCRIPT_DIR/ai-jack-shutdown.sh"
+INIT_SCRIPT="$SCRIPT_DIR/ai-jack-init.sh"
 
-echo "=== MOTU M4 JACK Server Restart ==="
-log "=== MOTU M4 JACK Server Restart started ==="
+echo "=== Audio Interface JACK Server Restart ==="
+log "=== Audio Interface JACK Server Restart started ==="
 
 # =============================================================================
 # User Detection

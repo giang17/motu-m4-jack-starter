@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # =============================================================================
-# MOTU M4 UDEV Event Handler
+# Audio Interface UDEV Event Handler - v3.0
 # =============================================================================
 # This script is triggered by UDEV when a sound device is added/removed.
-# It detects M4 connections and calls appropriate startup/shutdown scripts.
+# It detects audio interface connections and calls appropriate startup/shutdown
+# scripts. Works with any JACK-compatible audio interface.
 #
 # Parameters from UDEV:
 #   $1 (ACTION): "add" or "remove"
@@ -19,11 +20,22 @@ ACTION="$1"
 KERNEL="$2"
 
 # Log file path
-LOG="/run/motu-m4/jack-udev-handler.log"
+LOG="/run/ai-jack/jack-udev-handler.log"
 
 # Ensure log directory exists
-mkdir -p /run/motu-m4
-chmod 777 /run/motu-m4
+mkdir -p /run/ai-jack
+chmod 777 /run/ai-jack
+
+# =============================================================================
+# Configuration Loading
+# =============================================================================
+SYSTEM_CONFIG_FILE="/etc/ai-jack/jack-setting.conf"
+DEVICE_PATTERN=""
+
+# Load DEVICE_PATTERN from config if available
+if [ -f "$SYSTEM_CONFIG_FILE" ]; then
+    DEVICE_PATTERN=$(grep "^DEVICE_PATTERN=" "$SYSTEM_CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d ' ')
+fi
 
 # =============================================================================
 # Logging and Error Handling
@@ -39,13 +51,14 @@ set -e
 trap 'log "ERROR: Script failed at line $LINENO"' ERR
 
 log "UDEV handler called: ACTION=$ACTION KERNEL=$KERNEL"
+log "DEBUG: DEVICE_PATTERN=${DEVICE_PATTERN:-<not set>}"
 
 # =============================================================================
-# Device Addition Handler (when M4 is connected)
+# Device Addition Handler (when audio interface is connected)
 # =============================================================================
 
 if [ "$ACTION" = "add" ] && [[ "$KERNEL" == controlC* ]]; then
-    log "Sound controller added, checking for M4..."
+    log "Sound controller added, checking for audio interface..."
 
     # Check for logged-in user (flexible X11 session detection)
     log "DEBUG: Running who command..."
@@ -58,7 +71,7 @@ if [ "$ACTION" = "add" ] && [[ "$KERNEL" == controlC* ]]; then
 
     if [ -z "$USER_LOGGED_IN" ]; then
         log "No user logged in, creating trigger file"
-        touch /run/motu-m4/m4-detected
+        touch /run/ai-jack/device-detected
         log "DEBUG: Trigger file created"
         exit 0
     fi
@@ -70,29 +83,39 @@ if [ "$ACTION" = "add" ] && [[ "$KERNEL" == controlC* ]]; then
     APLAY_OUTPUT=$(aplay -l 2>&1 || echo "aplay command failed")
     log "DEBUG: aplay output: $APLAY_OUTPUT"
 
-    if echo "$APLAY_OUTPUT" | grep -q "M4"; then
-        log "M4 found, user $USER_LOGGED_IN logged in, starting JACK"
-        log "DEBUG: Calling motu-m4-jack-autostart.sh..."
-        /usr/local/bin/motu-m4-jack-autostart.sh >> $LOG 2>&1 || log "ERROR: Autostart script failed"
+    # Check for device - either using pattern or always start if no pattern configured
+    DEVICE_FOUND=false
+    if [ -n "$DEVICE_PATTERN" ]; then
+        if echo "$APLAY_OUTPUT" | grep -q "$DEVICE_PATTERN"; then
+            DEVICE_FOUND=true
+            log "Device matching pattern '$DEVICE_PATTERN' found"
+        fi
+    else
+        # No pattern configured - start on any sound device addition
+        DEVICE_FOUND=true
+        log "No DEVICE_PATTERN configured, starting JACK for any audio device"
+    fi
+
+    if [ "$DEVICE_FOUND" = true ]; then
+        log "Audio interface found, user $USER_LOGGED_IN logged in, starting JACK"
+        log "DEBUG: Calling ai-jack-autostart.sh..."
+        /usr/local/bin/ai-jack-autostart.sh >> $LOG 2>&1 || log "ERROR: Autostart script failed"
 
         # NOTE: Dynamic optimizer runs separately as system service
         log "DEBUG: Dynamic optimizer runs independently as system service"
-
-        # Async execution (commented out - runs synchronously instead)
-        # nohup /usr/local/bin/motu-m4-jack-autostart.sh >> $LOG 2>&1 &
     else
-        log "No M4 found"
+        log "No matching audio interface found (pattern: $DEVICE_PATTERN)"
     fi
 
 # =============================================================================
-# Device Removal Handler (when M4 is disconnected)
+# Device Removal Handler (when audio interface is disconnected)
 # =============================================================================
 
 elif [ "$ACTION" = "remove" ] && [[ "$KERNEL" == card* ]]; then
-    log "Sound device removed, checking for M4..."
+    log "Sound device removed, checking for audio interface..."
 
     # Remove trigger file
-    rm -f /run/motu-m4/m4-detected 2>/dev/null
+    rm -f /run/ai-jack/device-detected 2>/dev/null
 
     # Check for logged-in user (flexible search)
     USER_LOGGED_IN=$(who | grep "(:" | head -n1 | awk '{print $1}' || echo "")
@@ -104,11 +127,19 @@ elif [ "$ACTION" = "remove" ] && [[ "$KERNEL" == card* ]]; then
 
     sleep 2
 
-    if ! aplay -l | grep -q "M4"; then
-        log "M4 no longer available, user $USER_LOGGED_IN logged in, stopping JACK"
-        /usr/local/bin/motu-m4-jack-shutdown.sh >> $LOG 2>&1 || log "ERROR: Shutdown script failed"
+    # Check if device is still available
+    DEVICE_STILL_PRESENT=false
+    if [ -n "$DEVICE_PATTERN" ]; then
+        if aplay -l | grep -q "$DEVICE_PATTERN"; then
+            DEVICE_STILL_PRESENT=true
+        fi
+    fi
+
+    if [ "$DEVICE_STILL_PRESENT" = false ]; then
+        log "Audio interface no longer available, user $USER_LOGGED_IN logged in, stopping JACK"
+        /usr/local/bin/ai-jack-shutdown.sh >> $LOG 2>&1 || log "ERROR: Shutdown script failed"
     else
-        log "M4 still available"
+        log "Audio interface still available"
     fi
 fi
 

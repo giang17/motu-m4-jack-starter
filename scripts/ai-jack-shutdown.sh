@@ -1,23 +1,24 @@
 #!/bin/bash
 
 # =============================================================================
-# MOTU M4 JACK Shutdown Script
+# Audio Interface JACK Shutdown Script - v3.0
 # =============================================================================
-# Cleanly stops JACK server and A2J MIDI bridge when M4 is disconnected
+# Cleanly stops JACK server and A2J MIDI bridge when audio interface is
+# disconnected. Works with any JACK-compatible audio interface.
 #
-# Copyright (C) 2026
+# Copyright (C) 2025
 # License: GPL-3.0-or-later
 # =============================================================================
 
 # Log file path (consistent with other scripts)
-LOG="/run/motu-m4/jack-autostart.log"
+LOG="/run/ai-jack/jack-autostart.log"
 
 # Logging function
 log() {
     echo "$(date): $1" >> $LOG
 }
 
-log "M4 Audio Interface removed - Shutting down JACK"
+log "Audio Interface removed - Shutting down JACK"
 
 # Dynamic detection of active user
 ACTIVE_USER=$(who | grep "(:" | head -n1 | awk '{print $1}')
