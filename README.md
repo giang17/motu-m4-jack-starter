@@ -1,10 +1,19 @@
 # MOTU M4 JACK Automation System for Ubuntu Studio
 
+> **This project is deprecated.** Please use the new universal version:
+>
+> ## [ai-jack-starter](https://github.com/giang17/ai-jack-starter)
+>
+> Forked from motu-m4-jack-starter and redesigned to support **any USB audio interface** (MOTU, Focusrite, Steinberg, RME, etc.).
+
+---
+
 Automatic JACK audio server management for the MOTU M4 USB audio interface. Starts and stops JACK based on hardware detection and user login status.
 
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)
 ![Ubuntu Studio](https://img.shields.io/badge/Ubuntu%20Studio-24.04+-orange.svg)
 ![Version](https://img.shields.io/badge/version-2.1.3-green.svg)
+![Status](https://img.shields.io/badge/status-deprecated-red.svg)
 
 ## Features
 
@@ -154,4 +163,4 @@ GPL-3.0-or-later - See [LICENSE](LICENSE)
 
 ---
 
-**Status**: Production Ready ✅
+**Status**: Deprecated - Please use [ai-jack-starter](https://github.com/giang17/ai-jack-starter) instead.
