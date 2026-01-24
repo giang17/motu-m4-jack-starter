@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 
 For detailed release notes, see [GitHub Releases](https://github.com/giang17/motu-m4-jack-starter/releases).
 
+## [Unreleased]
+
+### Configurable DBus Timeout
+- Add `DBUS_TIMEOUT` configuration parameter to control DBus session bus wait time
+- Default: 30 seconds (same as previous hardcoded value)
+- Configurable via `/etc/motu-m4/jack-setting.conf` or `~/.config/motu-m4/jack-setting.conf`
+- Improved logging: shows configured timeout value and hints on timeout
+- Documentation: Added troubleshooting section for DBus issues in INSTALL.md
+
 ## [v2.1.3](https://github.com/giang17/motu-m4-jack-starter/releases/tag/v2.1.3) - 2026-01-24
 
 ### Improved Error Handling (Python GUI)

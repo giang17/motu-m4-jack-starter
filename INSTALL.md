@@ -341,6 +341,9 @@ The v2.0 configuration format (`/etc/motu-m4/jack-setting.conf`):
 JACK_RATE=48000
 JACK_PERIOD=256
 JACK_NPERIODS=3
+
+# DBus timeout (seconds) - time to wait for DBus at startup
+DBUS_TIMEOUT=30
 ```
 
 Legacy v1.x format is still supported:
@@ -523,6 +526,41 @@ journalctl --user -u motu-m4-login-check.service
 ---
 
 ## Advanced Configuration
+
+### DBus Session Bus Timeout
+
+The autostart scripts wait for the DBus session bus to become available before starting JACK. This is critical for reliable operation, especially at boot time when the user session is still initializing.
+
+**Default timeout**: 30 seconds
+
+**When to increase the timeout**:
+- Slow boot times or complex login procedures
+- Logs show "DBUS socket not found after X seconds"
+- DBus-related errors in `/run/motu-m4/jack-autostart.log`
+
+**Configuration**:
+
+```bash
+# In /etc/motu-m4/jack-setting.conf or ~/.config/motu-m4/jack-setting.conf
+DBUS_TIMEOUT=60  # Increase to 60 seconds
+```
+
+**What happens on timeout**:
+- JACK startup continues anyway (best-effort)
+- Some features (jack_control, a2jmidid) may not work correctly
+- A warning is logged with a hint to increase the timeout
+
+**Troubleshooting DBus issues**:
+
+```bash
+# Check autostart logs for DBus warnings
+grep -i dbus /run/motu-m4/jack-autostart*.log
+
+# Verify DBus socket exists
+ls -la /run/user/$(id -u)/bus
+```
+
+---
 
 ### Kernel Optimizations (for Ultra-Low Latency)
 
