@@ -99,6 +99,9 @@ class AudioInterfaceJackGUI(Gtk.Window):
         # Detected audio devices
         self.detected_devices = []
 
+        # Track previous hardware status for auto-refresh
+        self.previous_hardware_found = None
+
         # Get theme colors
         self._init_theme_colors()
 
@@ -448,8 +451,27 @@ class AudioInterfaceJackGUI(Gtk.Window):
         self.update_status_display()
         return True
 
+    # Patterns to filter out internal/onboard audio devices
+    INTERNAL_DEVICE_PATTERNS = [
+        "HDA NVidia",
+        "HDA Intel",
+        "HDA ATI",
+        "HDA AMD",
+        "HDMI",
+        "sof-",  # Intel SOF (Sound Open Firmware)
+        "PCH",   # Intel Platform Controller Hub
+    ]
+
+    def is_internal_device(self, card_name, card_id):
+        """Check if device is an internal/onboard audio device"""
+        check_str = f"{card_name} {card_id}".upper()
+        for pattern in self.INTERNAL_DEVICE_PATTERNS:
+            if pattern.upper() in check_str:
+                return True
+        return False
+
     def refresh_audio_devices(self):
-        """Detect and populate audio devices from aplay -l"""
+        """Detect and populate audio devices from aplay -l (filters internal devices)"""
         self.detected_devices = []
         self.device_combo.remove_all()
 
@@ -472,6 +494,11 @@ class AudioInterfaceJackGUI(Gtk.Window):
                     card_id = match.group(2)
                     card_name = match.group(3)
                     device_num = match.group(4)
+
+                    # Skip internal/onboard devices
+                    if self.is_internal_device(card_name, card_id):
+                        logger.debug("Skipping internal device: %s [%s]", card_name, card_id)
+                        continue
 
                     device_id = f"hw:{card_id},{device_num}"
                     display_name = f"{card_name} ({device_id})"
@@ -526,6 +553,18 @@ class AudioInterfaceJackGUI(Gtk.Window):
             return self.detected_devices[idx]["id"]
         # Fallback to default
         return "hw:0,0"
+
+    def select_device_in_combo(self, device_id, pattern=""):
+        """Selects the given device in the combo box and sets the pattern"""
+        self.updating_ui = True
+        for i, dev in enumerate(self.detected_devices):
+            if dev["id"] == device_id:
+                self.device_combo.set_active(i)
+                logger.info("Auto-selected device: %s", device_id)
+                break
+        # Set the pattern from config (preserve empty if config has no pattern)
+        self.pattern_entry.set_text(pattern)
+        self.updating_ui = False
 
     def get_device_pattern(self):
         """Returns the device pattern for hardware detection"""
@@ -638,7 +677,15 @@ class AudioInterfaceJackGUI(Gtk.Window):
         pattern = config.get("device_pattern", "")
         device = config.get("audio_device", "hw:0,0")
 
-        hardware_found = self.check_hardware(pattern)
+        hardware_found = self.check_hardware(pattern, device)
+
+        # Auto-refresh device list when hardware state changes (disconnected -> connected)
+        if hardware_found and self.previous_hardware_found is False:
+            logger.info("Hardware reconnected, refreshing device list")
+            self.refresh_audio_devices()
+            self.select_device_in_combo(device, pattern)
+        self.previous_hardware_found = hardware_found
+
         if hardware_found:
             self.hardware_status_label.set_markup(
                 f"Audio Device: <span foreground='{self.color_success}'><b>Connected</b></span> ({device})"
@@ -827,15 +874,25 @@ class AudioInterfaceJackGUI(Gtk.Window):
             logger.exception("Unexpected error checking JACK status: %s", type(e).__name__)
             return False
 
-    def check_hardware(self, pattern=""):
+    def check_hardware(self, pattern="", device=""):
         """Checks if audio interface is connected"""
         try:
+            # Force English output by setting LC_ALL=C (fixes locale issues)
+            env = os.environ.copy()
+            env["LC_ALL"] = "C"
             result = subprocess.run(
-                ["aplay", "-l"], capture_output=True, text=True, timeout=5
+                ["aplay", "-l"], capture_output=True, text=True, timeout=5, env=env
             )
             if pattern:
                 return pattern in result.stdout
-            # If no pattern, check if any sound card exists
+            # If no pattern but device is set, extract card name from device (e.g., "M4" from "hw:M4,0")
+            if device:
+                match = re.match(r"hw:(\w+),", device)
+                if match:
+                    card_name = match.group(1)
+                    # Check if this specific card exists in aplay output
+                    return f"card {card_name}" in result.stdout or f": {card_name} [" in result.stdout
+            # Fallback: check if any sound card exists
             return "card" in result.stdout.lower()
         except subprocess.TimeoutExpired:
             logger.error("aplay -l timed out after 5 seconds")
